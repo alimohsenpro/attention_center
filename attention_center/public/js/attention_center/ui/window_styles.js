@@ -73,6 +73,12 @@ export const WINDOW_STYLES = `
 	--ac-slide-from: -16px;
 }
 
+/* The drawer covers the launcher's corner. The launcher steps aside meanwhile, so that Tab never moves focus
+   onto a control nobody can see. */
+.launcher:has(~ .frame[data-mode="drawer"]:not([hidden])) {
+	visibility: hidden;
+}
+
 /* Green 700 is too dark on the dark surface for text (WCAG AA); green 500 is the same hue, lighter. */
 :host([data-theme="dark"]) .window {
 	--ac-link: var(--ac-green-500);
@@ -150,8 +156,10 @@ export const WINDOW_STYLES = `
 	transform: scaleX(-1);
 }
 
+/* The tab strip keeps its height when the window is short; the items scroll instead. */
 .tabs {
 	display: flex;
+	flex: none;
 	gap: 4px;
 	padding-inline: 16px;
 	border-block-end: 1px solid var(--ac-border);
@@ -497,8 +505,9 @@ tr[data-overdue] time {
 }
 
 /* Each item as a card [FR-UI-04]: the title with the priority at its inline end, then a line of type, source,
-   sender and status with the age and "Open" at its inline end. The panel (380 px) and the drawer (420 px)
-   are always this narrow; the dialog is when the screen is. The table's header stays for screen readers. */
+   sender and status with the age and "Open" at its inline end; "Open" keeps to the inline end when it wraps.
+   The panel (380 px) and the drawer (420 px) are always this narrow; the dialog is when the screen is. The
+   table's header stays for screen readers. */
 @container ac-window (width < 720px) {
 	.window-header {
 		padding-inline: 16px 8px;
@@ -559,6 +568,14 @@ tr[data-overdue] time {
 		flex-basis: 100%;
 	}
 
+	/* Takes the free space between the metadata and the age, so that it does not reach the auto margin of
+	   "Open", which then only acts when "Open" wraps onto a line of its own. */
+	tbody tr::after {
+		content: "";
+		order: 5;
+		flex: 1 0 0;
+	}
+
 	td {
 		padding: 0;
 		border: 0;
@@ -605,14 +622,14 @@ tr[data-overdue] time {
 	}
 
 	.cell-date {
-		order: 5;
-		margin-inline-start: auto;
+		order: 6;
 		color: var(--ac-muted);
 		font-size: 12px;
 	}
 
 	.cell-open {
-		order: 6;
+		order: 7;
+		margin-inline-start: auto;
 	}
 }
 

@@ -141,7 +141,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	function hide() {
 		generation++;
 		// Focus the user moved onto the page beside a panel or drawer stays where they put it.
-		const returnFocus = restoreFocus && focusInside();
+		const returnFocus = restoreFocus && ownsFocus();
 		frame.hidden = true;
 		if (returnFocus && opener?.isConnected) opener.focus();
 		opener = null;
@@ -367,17 +367,18 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		Promise.all(unseen.map((key) => api.markSeen(key))).then(safe(refreshSummary), () => {});
 	}
 
-	// Whether focus is in the window, or must be: the dialog keeps it inside.
-	function focusInside() {
+	// Whether focus belongs in the window: always in the modal dialog; beside a panel or drawer only while the
+	// user keeps it there.
+	function ownsFocus() {
 		return mode === "Dialog" || dialog.contains(root.activeElement);
 	}
 
 	// Runs a change of the window's content. A control it removes or disables while it has focus would drop
 	// focus onto the page; the window takes it instead.
 	function keepingFocus(change) {
-		const inside = focusInside();
+		const owned = ownsFocus();
 		change();
-		if (inside && !frame.hidden && !root.activeElement) dialog.focus();
+		if (owned && !frame.hidden && !root.activeElement) dialog.focus();
 	}
 
 	function state(icon, message, retry, kind = "state") {

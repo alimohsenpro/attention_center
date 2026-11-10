@@ -18,7 +18,8 @@ const CASES = [
 ];
 
 for (const [preference, mode, next] of CASES) {
-	test(`display_mode ${JSON.stringify(preference)} shows the window as ${mode}, the button switches to ${next}`, () => {
+	const name = JSON.stringify(preference);
+	test(`display_mode ${name} shows the window as ${mode}, its mode button switches to ${next}`, () => {
 		assert.equal(displayMode(preference), mode);
 		assert.equal(nextDisplayMode(preference), next);
 	});
