@@ -73,8 +73,9 @@ def set_preferences(values: object) -> dict:
 			_("Unknown preferences: {0}. Allowed: {1}").format(", ".join(unknown), ", ".join(EDITABLE_FIELDS))
 		)
 
+	changes = {fieldname: _clean(fieldname, value) for fieldname, value in values.items()}
 	doc = _own_doc()
-	doc.update({fieldname: _clean(fieldname, value) for fieldname, value in values.items()})
+	doc.update(changes)
 	_save(doc)
 	return get_effective(get_stored())
 
@@ -161,12 +162,14 @@ def _datetime(label: str, value: object) -> datetime | None:
 
 
 def _own_doc() -> Document:
-	"""The session user's preference, locked until the request ends so parallel writes do not overwrite each
-	other; a new one when they have none yet (created on first write, §3.3)."""
+	"""The session user's preference, created on their first write (§3.3) and locked until the request ends,
+	so that parallel writes do not overwrite each other."""
 	user = frappe.session.user
-	if frappe.db.exists(PREFERENCE, user):
-		return frappe.get_doc(PREFERENCE, user, for_update=True)
-	return frappe.new_doc(PREFERENCE, user=user)
+	if not frappe.db.exists(PREFERENCE, user):
+		# Users cannot write the DocType; this is their own row. Of two first writes in parallel (the window
+		# opening by itself marks a tab seen at once), the second one finds the row the first one created.
+		frappe.new_doc(PREFERENCE, user=user).insert(ignore_permissions=True, ignore_if_duplicate=True)
+	return frappe.get_doc(PREFERENCE, user, for_update=True)
 
 
 def _save(doc: Document) -> None:

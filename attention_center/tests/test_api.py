@@ -1,11 +1,13 @@
 import hashlib
 import json
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import frappe
 from frappe.exceptions import FrappeTypeError
 from frappe.handler import is_valid_http_method
+from frappe.permissions import add_permission
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_days, get_system_timezone, now_datetime, today
 
@@ -456,6 +458,23 @@ class TestPreferences(ApiTestCase):
 		}
 		self.assertEqual(api.set_preferences(reset), DEFAULT_PREFERENCES)
 
+	def test_a_first_write_that_loses_the_race_to_create_the_row_still_applies(self):
+		api.set_preferences({"volume": 20})
+		exists = frappe.db.exists
+		answers = iter([False])
+
+		def exists_as_seen_before_the_other_request_committed(doctype, *args, **kwargs):
+			if doctype == PREFERENCE:
+				return next(answers, True)
+			return exists(doctype, *args, **kwargs)
+
+		with patch.object(frappe.db, "exists", side_effect=exists_as_seen_before_the_other_request_committed):
+			api.set_preferences({"display_mode": "Panel"})
+
+		self.assertEqual(
+			(stored_preference(self.user).volume, stored_preference(self.user).display_mode), ("20", "Panel")
+		)
+
 	def test_preferences_sent_as_json_text_are_read(self):
 		self.assertEqual(api.set_preferences(json.dumps({"volume": "45"}))["volume"], 45)
 
@@ -472,7 +491,7 @@ class TestPreferences(ApiTestCase):
 		an_hour_ago = (now_datetime() - timedelta(hours=1)).isoformat(timespec="seconds")
 		self.assertIsNone(api.set_preferences({"dnd_until": an_hour_ago})["dnd_until"], "it has ended")
 
-	def test_invalid_values_are_rejected_and_nothing_is_stored(self):
+	def test_invalid_values_are_rejected(self):
 		invalid = {
 			"sound_scope": ["Loud", 1, None],
 			"tone": ["urgent", "reminder", "siren", "Chime"],
@@ -488,7 +507,7 @@ class TestPreferences(ApiTestCase):
 					with self.assertRaises(frappe.ValidationError):
 						api.set_preferences({fieldname: value})
 
-		self.assertIsNone(stored_preference(self.user))
+		self.assertEqual(api.get_preferences(), DEFAULT_PREFERENCES)
 
 	def test_unknown_names_are_rejected_so_stored_state_cannot_be_written(self):
 		for prefs in (
@@ -579,6 +598,17 @@ class TestTestSource(ApiTestCase):
 		self.assertEqual(api.test_source(TODOS)["count"]["count"], 2, "not the count cached a moment ago")
 
 	def test_users_without_a_manager_role_are_refused(self):
+		with self.assertRaises(frappe.PermissionError):
+			api.test_source(TODOS)
+
+	def test_reading_the_sources_is_not_enough_without_a_manager_role(self):
+		frappe.set_user("Administrator")
+		reader_role = make_desk_role("_Test Attention Source Reader")
+		add_permission(SOURCE, reader_role)
+		self.addCleanup(frappe.clear_cache, doctype=SOURCE)
+		frappe.set_user(make_user("api.reader@example.com", [reader_role]))
+		self.assertTrue(frappe.has_permission(SOURCE, "read"))
+
 		with self.assertRaises(frappe.PermissionError):
 			api.test_source(TODOS)
 
