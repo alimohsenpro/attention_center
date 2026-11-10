@@ -2,8 +2,6 @@ import { badge, countText } from "./badge.js";
 import { isDeskRoute } from "./route.js";
 
 export const ALL_TAB = "all";
-// Frappe translates these words too; the context keeps the app's Arabic from replacing Frappe's elsewhere.
-export const CONTEXT = "Attention Center";
 
 // The window's tabs for a summary [FR-UI-02]: "All", which merges the action sources, then one tab per
 // action source, then the info sources. Each tab names the sources it shows, its counter text, whether it
@@ -15,7 +13,7 @@ export function buildTabs(summary) {
 	const { count, attention } = badge(summary);
 	const all = {
 		id: ALL_TAB,
-		label: __("All", null, CONTEXT),
+		label: __("All", null, "Attention Center"),
 		sources: actions.map((source) => source.key),
 		counter: count,
 		attention,
@@ -33,7 +31,10 @@ function sourceTab(source) {
 		label: source.label,
 		sources: [source.key],
 		counter: ok ? countText(source.count, source.capped) : "",
-		attention: ok && source.kind === "action" && source.urgent + source.immediate + source.overdue > 0,
+		attention:
+			ok &&
+			source.kind === "action" &&
+			source.urgent + source.immediate + source.overdue > 0,
 		unseen: ok && source.kind === "info" && source.new_since > 0,
 		listRoute: isDeskRoute(source.list_route) ? source.list_route : null,
 	};

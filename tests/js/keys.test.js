@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { roveIndex, trapIndex } from "../../attention_center/public/js/attention_center/util/keys.js";
+import {
+	roveIndex,
+	trapIndex,
+} from "../../attention_center/public/js/attention_center/util/keys.js";
 
 // [key, focused tab, right-to-left, tab to focus], in a list of four tabs.
 const ROVING_CASES = [
@@ -46,7 +49,9 @@ const TRAP_CASES = [
 ];
 
 for (const [index, backwards, expected] of TRAP_CASES) {
-	test(`${backwards ? "Shift+Tab" : "Tab"} from element ${index} of 3 goes to ${expected}`, () => {
+	test(`${
+		backwards ? "Shift+Tab" : "Tab"
+	} from element ${index} of 3 goes to ${expected}`, () => {
 		assert.equal(trapIndex(index, 3, backwards), expected);
 	});
 }

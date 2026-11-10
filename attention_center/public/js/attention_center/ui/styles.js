@@ -58,6 +58,7 @@ button {
 	outline-offset: 2px;
 }
 
+.visually-hidden,
 .launcher[data-collapsed] .launcher-label {
 	position: absolute;
 	inline-size: 1px;
@@ -185,49 +186,6 @@ button {
 
 :host([dir="rtl"]) .launcher[data-collapsed] .launcher-toggle svg {
 	transform: none;
-}
-
-.placeholder {
-	position: fixed;
-	inset-block-end: 72px;
-	inset-inline-end: 16px;
-	z-index: 1020;
-	inline-size: min(320px, calc(100vw - 32px));
-	padding: 16px;
-	border: 1px solid var(--ac-border);
-	border-radius: var(--ac-radius-lg);
-	background: var(--ac-surface);
-	color: var(--ac-ink);
-	box-shadow: var(--ac-shadow);
-	font-size: 14px;
-	line-height: 1.6;
-}
-
-.placeholder h2 {
-	margin-block: 0 8px;
-	margin-inline: 0;
-	font-size: 16px;
-	font-weight: 700;
-}
-
-.placeholder ul {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.placeholder li {
-	display: flex;
-	justify-content: space-between;
-	gap: 12px;
-	padding-block: 8px;
-	border-block-start: 1px solid var(--ac-border);
-	font-size: 13px;
-}
-
-.placeholder li > :last-child {
-	font-weight: 700;
-	font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce) {

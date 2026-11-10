@@ -22,7 +22,11 @@ const ORDER_CASES = [
 		item("late", { overdue: true }),
 		item("now", { priority: "immediate" }),
 	],
-	["immediate before urgent", item("i", { priority: "immediate" }), item("u", { priority: "urgent" })],
+	[
+		"immediate before urgent",
+		item("i", { priority: "immediate" }),
+		item("u", { priority: "urgent" }),
+	],
 	["urgent before normal", item("u", { priority: "urgent" }), item("n")],
 	[
 		"newer before older in the same class",
@@ -58,7 +62,10 @@ test("the All tab merges the sources into one order and names each item's source
 		{
 			key: "app.approvals",
 			done: true,
-			items: [item("a1", { priority: "urgent" }), item("a2", { date: "2026-10-01T00:00:00" })],
+			items: [
+				item("a1", { priority: "urgent" }),
+				item("a2", { date: "2026-10-01T00:00:00" }),
+			],
 		},
 		{
 			key: "app.tasks",
@@ -82,11 +89,19 @@ test("the All tab merges the sources into one order and names each item's source
 test("each source keeps its own order in the merge, even where the general order disagrees", () => {
 	// Beyond its newest rows a source orders by date only (§4.4): its order is kept.
 	const streams = [
-		{ key: "app.a", done: true, items: [item("old", { date: "2026-01-01" }), item("urgent", { priority: "urgent" })] },
+		{
+			key: "app.a",
+			done: true,
+			items: [item("old", { date: "2026-01-01" }), item("urgent", { priority: "urgent" })],
+		},
 		{ key: "app.b", done: true, items: [item("mid", { date: "2026-06-01" })] },
 	];
 
-	assert.deepEqual(ids(mergePage(streams, 0, 10).items), ["app.b:mid", "app.a:old", "app.a:urgent"]);
+	assert.deepEqual(ids(mergePage(streams, 0, 10).items), [
+		"app.b:mid",
+		"app.a:old",
+		"app.a:urgent",
+	]);
 });
 
 test("on a tie the earlier source goes first", () => {
@@ -115,7 +130,11 @@ test("a page waits for every source whose fetched items are used up and may hold
 test("a later page skips the items of the pages before it", () => {
 	const streams = [
 		{ key: "app.a", done: true, items: [item("1"), item("3", { date: "2026-10-01" })] },
-		{ key: "app.b", done: true, items: [item("2", { date: "2026-10-15" }), item("4", { date: "2026-09-01" })] },
+		{
+			key: "app.b",
+			done: true,
+			items: [item("2", { date: "2026-10-15" }), item("4", { date: "2026-09-01" })],
+		},
 	];
 
 	assert.deepEqual(ids(mergePage(streams, 1, 2).items), ["app.a:3", "app.b:4"]);
@@ -127,10 +146,20 @@ const dated = (prefix, count) =>
 	Array.from({ length: count }, (_, i) => item(`${prefix}${i}`, { date: `2026-10-0${9 - i}` }));
 
 const HAS_MORE_CASES = [
-	["every source is done and the page used every item", [dated("a", 2), true], [dated("b", 1), true], false],
+	[
+		"every source is done and the page used every item",
+		[dated("a", 2), true],
+		[dated("b", 1), true],
+		false,
+	],
 	["fetched items are left after the page", [dated("a", 3), true], [dated("b", 1), true], true],
 	// No request is needed to know it: the server said so with the items already fetched.
-	["a source used up exactly at the end of the page has more", [dated("a", 3), false], [[], true], true],
+	[
+		"a source used up exactly at the end of the page has more",
+		[dated("a", 3), false],
+		[[], true],
+		true,
+	],
 ];
 
 for (const [name, [itemsA, doneA], [itemsB, doneB], expected] of HAS_MORE_CASES) {
@@ -154,14 +183,21 @@ function fakeServer(itemsBySource, failing = new Set()) {
 		requests.push([key, start]);
 		if (failing.has(key)) return { state: "error", items: [], has_more: false };
 		const all = itemsBySource[key];
-		return { state: "ok", items: all.slice(start, start + size), has_more: start + size < all.length };
+		return {
+			state: "ok",
+			items: all.slice(start, start + size),
+			has_more: start + size < all.length,
+		};
 	};
 	return { requests, fetchItems };
 }
 
 const series = (prefix, count, fields = {}) =>
 	Array.from({ length: count }, (_, i) =>
-		item(`${prefix}${i + 1}`, { date: `2026-11-${String(28 - i).padStart(2, "0")}T00:00:00`, ...fields })
+		item(`${prefix}${i + 1}`, {
+			date: `2026-11-${String(28 - i).padStart(2, "0")}T00:00:00`,
+			...fields,
+		})
 	);
 
 test("a source tab fetches its pages one at a time, and tells whether another follows", async () => {
@@ -221,7 +257,10 @@ test("the All tab fetches further only from the sources its page reaches into", 
 });
 
 test("a failing source is reported, and the other sources of the All tab still show", async () => {
-	const server = fakeServer({ "app.ok": series("o", 2), "app.broken": [] }, new Set(["app.broken"]));
+	const server = fakeServer(
+		{ "app.ok": series("o", 2), "app.broken": [] },
+		new Set(["app.broken"])
+	);
 	const feed = createFeed(["app.broken", "app.ok"], server.fetchItems, 10);
 
 	const page = await feed.page(0);

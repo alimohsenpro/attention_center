@@ -25,13 +25,16 @@ export function mergePage(streams, page, size) {
 	const merged = [];
 	while (merged.length < end) {
 		// A stream whose fetched items are used up may still hold the next item.
-		const need = streams.filter((stream, i) => heads[i] === stream.items.length && !stream.done);
+		const need = streams.filter(
+			(stream, i) => heads[i] === stream.items.length && !stream.done
+		);
 		if (need.length) return { need: need.map((stream) => stream.key) };
 
 		let next = -1;
 		streams.forEach((stream, i) => {
 			const item = stream.items[heads[i]];
-			if (item && (next < 0 || compareItems(item, streams[next].items[heads[next]]) < 0)) next = i;
+			if (item && (next < 0 || compareItems(item, streams[next].items[heads[next]]) < 0))
+				next = i;
 		});
 		if (next < 0) break;
 		merged.push({ source: streams[next].key, item: streams[next].items[heads[next]++] });
@@ -91,7 +94,9 @@ export function createFeed(keys, fetchItems, size) {
 			for (;;) {
 				const result = mergePage(streams, number, size);
 				if (!result.need.length) {
-					const failed = streams.filter((stream) => stream.failed).map((stream) => stream.key);
+					const failed = streams
+						.filter((stream) => stream.failed)
+						.map((stream) => stream.key);
 					return { items: result.items, hasMore: result.hasMore, failed };
 				}
 				await Promise.all(

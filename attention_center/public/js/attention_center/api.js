@@ -46,6 +46,9 @@ export function createApi(call) {
 
 	return {
 		getSummary: () => read("get_summary"),
+		getItems: (source, start, pageLength) =>
+			read("get_items", { source, start, page_length: pageLength }),
+		markSeen: (source) => write("mark_seen", { source }),
 		setPreferences: (prefs) => write("set_preferences", { prefs }),
 	};
 }

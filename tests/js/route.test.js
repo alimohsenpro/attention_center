@@ -53,7 +53,10 @@ for (const [name, route] of REJECTED) {
 const ROUTE_ARGUMENTS = [
 	["/app/todo", ["todo"]],
 	["/app/todo?status=Open", ["todo", { status: "Open" }]],
-	["/app/notification-log?read=0&for_user=a%40example.com", ["notification-log", { read: "0", for_user: "a@example.com" }]],
+	[
+		"/app/notification-log?read=0&for_user=a%40example.com",
+		["notification-log", { read: "0", for_user: "a@example.com" }],
+	],
 	["/app/sales-invoice/SINV-0001", ["sales-invoice", "SINV-0001"]],
 	["/app/my-request/REQ%2F0001", ["my-request", "REQ/0001"]],
 	["/app/my-request/%D8%B7%D9%84%D8%A8-1", ["my-request", "طلب-1"]],
