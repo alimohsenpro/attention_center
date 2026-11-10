@@ -1,4 +1,5 @@
 import { createApi, createTransport } from "./api.js";
+import { startRefreshLoop } from "./realtime.js";
 import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
 import { STYLES } from "./ui/styles.js";
@@ -10,8 +11,6 @@ import { watchTitle } from "./util/title.js";
 const HOST_ID = "attention-center-root";
 // dir and lang for layout and fonts, data-theme for the dark tokens (§7.1).
 const MIRRORED_ATTRIBUTES = ["dir", "lang", "data-theme"];
-// The desk's own requests after boot go first; no request of this app delays the boot [NFR-PERF-02].
-const FIRST_FETCH_DELAY_MS = 1000;
 const WINDOW_BUNDLE = "attention_center_window.bundle.js";
 const SHORTCUT = "alt+shift+a";
 
@@ -30,8 +29,11 @@ function start() {
 	}
 
 	const shadow = createHost();
-	const store = createStore({ summary: null, prefs: boot.preferences, ui: { open: false } });
 	const api = createApi(createTransport(fetch, () => frappe.csrf_token));
+	const store = createStore(
+		{ summary: null, prefs: boot.preferences, ui: { open: false } },
+		api.getSummary
+	);
 	const title = watchTitle(document, observe);
 	guard.addCleanup(title.stop);
 	const announce = createLiveRegion(shadow);
@@ -40,7 +42,7 @@ function start() {
 		api,
 		safe: guard.safe,
 		announce,
-		refreshSummary: () => refreshSummary(store, api),
+		refreshSummary: () => store.refreshSummary(),
 		pageSize: boot.settings.page_size,
 	});
 	const toggleWindow = guard.safe(() => {
@@ -70,10 +72,15 @@ function start() {
 	store.subscribe(render);
 	render(store.get());
 
-	setTimeout(
-		guard.safe(() => refreshSummary(store, api)),
-		FIRST_FETCH_DELAY_MS
-	);
+	// The first summary is fetched after the boot, never during it [NFR-PERF-02].
+	startRefreshLoop({
+		refresh: store.refreshSummary,
+		heartbeatSeconds: boot.settings.heartbeat_seconds,
+		realtime: frappe.realtime,
+		page: document,
+		network: window,
+		safe: guard.safe,
+	});
 }
 
 function createHost() {
@@ -153,17 +160,6 @@ function loadScript(src) {
 
 function setOpen(store, open) {
 	store.set({ ui: { ...store.get().ui, open } });
-}
-
-async function refreshSummary(store, api) {
-	let summary;
-	try {
-		summary = await api.getSummary();
-	} catch {
-		// A failed request is not a failure of the client: the launcher keeps what it shows.
-		return;
-	}
-	store.set({ summary });
 }
 
 function toggleCollapsed(store, api) {
