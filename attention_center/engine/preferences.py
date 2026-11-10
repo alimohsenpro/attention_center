@@ -43,7 +43,7 @@ def get_stored() -> frappe._dict:
 def get_effective(stored: frappe._dict) -> dict:
 	"""Every preference as it applies: the user's own value, else the default from the settings [FR-SET-02]."""
 	settings = frappe.get_cached_doc(SETTINGS)
-	dnd_until = stored.dnd_until
+	dnd_until = stored.dnd_until if stored.dnd_until and stored.dnd_until > now_datetime() else None
 	return {
 		"display_mode": _own_or(stored.display_mode, settings.default_display_mode),
 		"auto_open_on_login": AUTO_OPEN.get(
@@ -52,9 +52,7 @@ def get_effective(stored: frappe._dict) -> dict:
 		"sound_scope": _own_or(stored.sound_scope, settings.default_sound_scope),
 		"tone": _own_or(stored.tone, settings.default_tone),
 		"volume": cint(_own_or(stored.volume, settings.default_volume)),
-		"dnd_until": dnd_until.isoformat(timespec="seconds")
-		if dnd_until and dnd_until > now_datetime()
-		else None,
+		"dnd_until": dnd_until.isoformat(timespec="seconds") if dnd_until else None,
 		"launcher_collapsed": bool(stored.launcher_collapsed),
 	}
 
@@ -126,10 +124,10 @@ def _tone_file() -> tuple[dict, ...]:
 
 def _clean(fieldname: str, value: object) -> object:
 	"""The value to store, or a ValidationError naming the field."""
-	label = _(frappe.get_meta(PREFERENCE).get_label(fieldname), context=PREFERENCE)
 	if fieldname == "volume":
 		# The controller accepts empty or a whole number from 0 to 100.
 		return value
+	label = _(frappe.get_meta(PREFERENCE).get_label(fieldname), context=PREFERENCE)
 	if fieldname == "dnd_until":
 		return _datetime(label, value)
 	if fieldname == "launcher_collapsed":
