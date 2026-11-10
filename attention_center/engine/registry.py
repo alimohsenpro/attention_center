@@ -22,6 +22,7 @@ MAPPED_FIELDS = {
 	"due": "due_field",
 	"status": "status_field",
 }
+ROUTE_FIELDS = {"route": "route_field", "doctype": "route_doctype_field", "name": "route_name_field"}
 SOURCE_FIELDS = (
 	"key",
 	"label",
@@ -34,6 +35,7 @@ SOURCE_FIELDS = (
 	"priority_map_json",
 	"recipient_fields",
 	*MAPPED_FIELDS.values(),
+	*ROUTE_FIELDS.values(),
 	"get_count",
 	"get_items",
 	"get_recipients",
@@ -112,6 +114,7 @@ def _sync_source(source: dict) -> bool:
 def _definition_values(source: dict) -> dict:
 	"""Every definition field of Attention Source, so that a key removed from the hook entry is cleared."""
 	fields = source.get("fields") or {}
+	route_fields = source.get("route_fields") or {}
 	return {
 		"is_system": 1,
 		"app": source["app"],
@@ -125,6 +128,7 @@ def _definition_values(source: dict) -> dict:
 		"priority_map_json": _json(source.get("priority_map")),
 		"recipient_fields": _comma_separated(source.get("recipient_fields")),
 		**{fieldname: fields.get(role) for role, fieldname in MAPPED_FIELDS.items()},
+		**{fieldname: route_fields.get(role) for role, fieldname in ROUTE_FIELDS.items()},
 		"get_count": source.get("get_count"),
 		"get_items": source.get("get_items"),
 		"get_recipients": source.get("get_recipients"),

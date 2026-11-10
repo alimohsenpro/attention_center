@@ -109,6 +109,9 @@ class DocTypeQuery:
 			source.priority_field,
 			source.due_field,
 			source.status_field,
+			source.route_field,
+			source.route_doctype_field,
+			source.route_name_field,
 		)
 		window = self.rows(*fields, start=0, limit=WINDOW)
 		end = start + page_length
@@ -147,11 +150,14 @@ class DocTypeQuery:
 	def item(self, row: frappe._dict) -> dict:
 		source = self.source
 		status = row.get(source.status_field)
+		reference_doctype, reference_name = self.reference(row)
 		return {
 			"id": row.name,
 			"title": row.get(source.title_field),
-			"reference_doctype": source.reference_doctype,
-			"reference_name": row.name,
+			# contract.normalize_item opens the reference instead when this is not a desk route.
+			"route": row.get(source.route_field),
+			"reference_doctype": reference_doctype,
+			"reference_name": reference_name,
 			# A value that is not a user id is shown as it is (frappe.utils.get_fullname).
 			"from_user": row.get(source.from_field),
 			"date": row.get(source.date_field),
@@ -159,6 +165,14 @@ class DocTypeQuery:
 			"due": row.get(source.due_field),
 			"status_label": _(status) if isinstance(status, str) and status else None,
 		}
+
+	def reference(self, row: frappe._dict) -> tuple[str, str]:
+		"""The document the route fields point to, or the row itself when they do not name one."""
+		doctype = row.get(self.source.route_doctype_field)
+		name = row.get(self.source.route_name_field)
+		if doctype and name:
+			return doctype, name
+		return self.source.reference_doctype, row.name
 
 
 def _moment(value: object) -> datetime | None:

@@ -21,6 +21,7 @@ PLACEHOLDER_PATTERN = re.compile(r"\{[^{}]*\}")
 PLACEHOLDERS = ("{user}", "{today}")
 MAPPED_FIELDS = ("title_field", "from_field", "date_field", "priority_field", "due_field", "status_field")
 REQUIRED_MAPPED_FIELDS = ("title_field", "date_field")
+ROUTE_FIELDS = ("route_field", "route_doctype_field", "route_name_field")
 CALLABLE_FIELDS = ("get_count", "get_items", "get_recipients", "watch_doctypes")
 REQUIRED_CALLABLE_FIELDS = ("get_count", "get_items")
 ADMIN_FIELDS = frozenset(("enabled", "sort_order", "label", "roles", "user_groups"))
@@ -131,10 +132,17 @@ class AttentionSource(Document):
 					_("{0} is required for a DocType Query source.").format(self.field_label(fieldname))
 				)
 
-		for fieldname in MAPPED_FIELDS:
+		for fieldname in MAPPED_FIELDS + ROUTE_FIELDS:
 			mapped = self.get(fieldname)
 			if mapped and mapped not in columns:
 				self.throw_unknown_field(self.field_label(fieldname), mapped)
+
+		if bool(self.route_doctype_field) != bool(self.route_name_field):
+			frappe.throw(
+				_("Set {0} and {1} together.").format(
+					self.field_label("route_doctype_field"), self.field_label("route_name_field")
+				)
+			)
 
 	def validate_recipient_fields(self, columns: frozenset[str]) -> None:
 		for fieldname in cstr(self.recipient_fields).split(","):
