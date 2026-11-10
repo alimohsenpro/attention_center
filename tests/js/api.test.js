@@ -80,6 +80,55 @@ test("a failed write rejects its caller and does not block the next write", asyn
 	assert.deepEqual(await next, { launcher_collapsed: false });
 });
 
+test("an items request names the source and the page, and the same page asked twice is sent once", async () => {
+	const server = fakeServer();
+	const api = createApi(server.call);
+	const page = { state: "ok", items: [], has_more: false };
+
+	const first = api.getItems("app.tasks", 10, 10);
+	const again = api.getItems("app.tasks", 10, 10);
+	const other = api.getItems("app.tasks", 20, 10);
+
+	assert.deepEqual(
+		server.requests.map((request) => [request.method, request.args]),
+		[
+			[
+				"attention_center.api.get_items",
+				{ source: "app.tasks", start: 10, page_length: 10 },
+			],
+			[
+				"attention_center.api.get_items",
+				{ source: "app.tasks", start: 20, page_length: 10 },
+			],
+		]
+	);
+	server.requests[0].resolve(page);
+	assert.equal(await first, page);
+	assert.equal(await again, page);
+	server.requests[1].resolve(page);
+	await other;
+});
+
+test("marking sources seen is a write, queued behind the preference writes", async () => {
+	const server = fakeServer();
+	const api = createApi(server.call);
+
+	const collapse = api.setPreferences({ launcher_collapsed: true });
+	const seen = api.markSeen("app.tasks");
+	await settle();
+	assert.equal(server.requests.length, 1);
+
+	server.requests[0].resolve({});
+	await collapse;
+	await settle();
+	assert.deepEqual(
+		[server.requests[1].method, server.requests[1].args],
+		["attention_center.api.mark_seen", { source: "app.tasks" }]
+	);
+	server.requests[1].resolve(null);
+	assert.equal(await seen, null);
+});
+
 // A fetch that records each request and gives every one the same answer.
 function fakeFetch(status, body) {
 	const requests = [];

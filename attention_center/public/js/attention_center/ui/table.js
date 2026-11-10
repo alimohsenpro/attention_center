@@ -1,0 +1,110 @@
+import { element } from "../util/dom.js";
+import { isDeskRoute } from "../util/route.js";
+import { ICONS } from "./icons.js";
+
+// The items of a tab as a table [FR-UI-02]: item, type (and source in the All tab), from, date, priority and
+// due date, status, and an "Open" link. Every value is set as text. Overdue, urgent and immediate rows carry a
+// worded label with an icon, not only a colour (AC2).
+//
+// `entries` are {source, item} pairs; `sourceLabel(key)` names a source; `format` has `age(iso)` and
+// `date(iso)`; `onOpenClick` handles a click on an item's "Open" link, whose href is the item's route.
+export function renderTable(entries, { showSource, sourceLabel, format, onOpenClick }) {
+	const table = document.createElement("table");
+	const head = table.createTHead().insertRow();
+	const headings = [
+		__("Item", null, "Attention Center"),
+		__("Type", null, "Attention Center"),
+		__("From", null, "Attention Center"),
+		__("Date", null, "Attention Center"),
+		__("Priority", null, "Attention Center"),
+		__("Status", null, "Attention Center"),
+	];
+	for (const heading of headings) head.append(element("th", null, heading));
+	const openHeading = element("th");
+	openHeading.append(element("span", "visually-hidden", __("Open", null, "Attention Center")));
+	head.append(openHeading);
+	for (const th of head.cells) th.scope = "col";
+
+	const body = table.createTBody();
+	for (const { source, item } of entries) {
+		body.append(row(item, showSource ? sourceLabel(source) : null, format, onOpenClick));
+	}
+	const wrapper = element("div", "table-wrap");
+	wrapper.append(table);
+	return wrapper;
+}
+
+function row(item, sourceName, format, onClick) {
+	const tr = element("tr");
+	tr.toggleAttribute("data-overdue", item.overdue);
+	tr.dataset.priority = item.priority;
+
+	const title = element("td", "cell-item");
+	title.append(element("span", "item-title", item.title));
+
+	const type = element("td");
+	if (item.type_label) type.append(element("span", null, item.type_label));
+	if (sourceName) type.append(element("span", "muted", sourceName));
+
+	tr.append(title, type, element("td", null, item.from_label), dateCell(item.date, format));
+	tr.append(priorityCell(item, format), statusCell(item), openCell(item, onClick));
+	return tr;
+}
+
+function dateCell(iso, format) {
+	const td = element("td");
+	if (iso) {
+		const time = element("time", null, format.age(iso));
+		time.dateTime = iso;
+		time.title = format.date(iso);
+		td.append(time);
+	}
+	return td;
+}
+
+function priorityCell(item, format) {
+	const td = element("td");
+	td.append(priorityLabel(item.priority));
+	if (item.overdue) {
+		td.append(pill(__("Overdue", null, "Attention Center"), "overdue"));
+	} else if (item.due) {
+		const due = __("Due {0}", [format.date(item.due)], "Attention Center");
+		td.append(element("span", "muted", due));
+	}
+	return td;
+}
+
+function priorityLabel(priority) {
+	if (priority === "immediate") return pill(__("Immediate", null, "Attention Center"), priority);
+	if (priority === "urgent") return pill(__("Urgent", null, "Attention Center"), priority);
+	return element("span", "muted", __("Normal", null, "Attention Center"));
+}
+
+function statusCell(item) {
+	const td = element("td");
+	if (item.status_label) {
+		const status = element("span", "status", item.status_label);
+		status.dataset.color = item.status_color;
+		td.append(status);
+	}
+	return td;
+}
+
+function openCell(item, onClick) {
+	const td = element("td");
+	if (!isDeskRoute(item.route)) return td;
+	const link = element("a", "open-link", __("Open", null, "Attention Center"));
+	link.href = item.route;
+	link.setAttribute("aria-label", __("Open {0}", [item.title], "Attention Center"));
+	link.addEventListener("click", onClick);
+	td.append(link);
+	return td;
+}
+
+function pill(label, kind) {
+	const node = element("span", "pill");
+	node.dataset.kind = kind;
+	node.innerHTML = ICONS.alert;
+	node.append(element("span", null, label));
+	return node;
+}

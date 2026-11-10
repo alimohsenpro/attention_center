@@ -1,9 +1,9 @@
 import { createApi, createTransport } from "./api.js";
 import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
-import { createPlaceholder } from "./ui/placeholder.js";
 import { STYLES } from "./ui/styles.js";
 import { badge } from "./util/badge.js";
+import { adoptStyles } from "./util/dom.js";
 import { createGuard } from "./util/guard.js";
 import { watchTitle } from "./util/title.js";
 
@@ -12,6 +12,8 @@ const HOST_ID = "attention-center-root";
 const MIRRORED_ATTRIBUTES = ["dir", "lang", "data-theme"];
 // The desk's own requests after boot go first; no request of this app delays the boot [NFR-PERF-02].
 const FIRST_FETCH_DELAY_MS = 1000;
+const WINDOW_BUNDLE = "attention_center_window.bundle.js";
+const SHORTCUT = "alt+shift+a";
 
 const guard = createGuard();
 const observe = (callback) => new MutationObserver(guard.safe(callback));
@@ -32,13 +34,29 @@ function start() {
 	const api = createApi(createTransport(fetch, () => frappe.csrf_token));
 	const title = watchTitle(document, observe);
 	guard.addCleanup(title.stop);
+	const announce = createLiveRegion(shadow);
+	const openWindow = windowOpener(shadow, {
+		store,
+		api,
+		safe: guard.safe,
+		announce,
+		refreshSummary: () => refreshSummary(store, api),
+		pageSize: boot.settings.page_size,
+	});
+	const toggleWindow = guard.safe(() => {
+		if (store.get().ui.open) setOpen(store, false);
+		else openWindow();
+	});
 	const launcher = createLauncher(shadow, {
-		onOpen: guard.safe(() =>
-			store.set({ ui: { ...store.get().ui, open: !store.get().ui.open } })
-		),
+		onOpen: toggleWindow,
 		onToggleCollapsed: guard.safe(() => toggleCollapsed(store, api)),
 	});
-	const placeholder = createPlaceholder(shadow);
+	frappe.ui.keys?.add_shortcut?.({
+		shortcut: SHORTCUT,
+		action: toggleWindow,
+		description: __("Open or close the Attention Center"),
+		ignore_inputs: true,
+	});
 
 	const render = guard.safe((state) => {
 		const summaryBadge = badge(state.summary);
@@ -48,7 +66,6 @@ function start() {
 			open: state.ui.open,
 		});
 		title.set(summaryBadge.count);
-		placeholder.render(state);
 	});
 	store.subscribe(render);
 	render(store.get());
@@ -66,7 +83,7 @@ function createHost() {
 	document.body.append(host);
 	guard.addCleanup(() => host.remove());
 	const shadow = host.attachShadow({ mode: "open" });
-	adoptStyles(shadow);
+	adoptStyles(shadow, STYLES);
 	return shadow;
 }
 
@@ -85,16 +102,57 @@ function mirrorPageAttributes(host) {
 	guard.addCleanup(() => observer.disconnect());
 }
 
-function adoptStyles(shadow) {
-	if ("adoptedStyleSheets" in shadow && "replaceSync" in CSSStyleSheet.prototype) {
-		const sheet = new CSSStyleSheet();
-		sheet.replaceSync(STYLES);
-		shadow.adoptedStyleSheets = [sheet];
-	} else {
-		const style = document.createElement("style");
-		style.textContent = STYLES;
-		shadow.append(style);
-	}
+// The polite live region through which the window, and later the alerts, speak to screen readers [FR-UI-08].
+function createLiveRegion(shadow) {
+	const region = document.createElement("div");
+	region.className = "visually-hidden";
+	region.setAttribute("role", "status");
+	region.setAttribute("aria-live", "polite");
+	shadow.append(region);
+	return (text) => {
+		// A message equal to the last one changes nothing in the region and would not be spoken again.
+		region.textContent = region.textContent === text ? `${text}\u00a0` : text;
+	};
+}
+
+// Opens the window, loading its bundle on the first call [NFR-PERF-02]. The bundle is added as a <script>
+// rather than through frappe.require, which freezes the desk while it loads and never unfreezes it when the
+// request fails. A bundle that does not load is like a failed request: the next click tries again.
+function windowOpener(shadow, options) {
+	let ready = null;
+	return () => {
+		ready ??= loadScript(frappe.boot.assets_json?.[WINDOW_BUNDLE]).then(
+			guard.safe(() => window.attention_center_window.createWindow(shadow, options))
+		);
+		ready.then(
+			guard.safe(() => setOpen(options.store, true)),
+			() => (ready = null)
+		);
+	};
+}
+
+function loadScript(src) {
+	return new Promise((resolve, reject) => {
+		if (!src) {
+			reject(new Error(`${WINDOW_BUNDLE} is not built`));
+			return;
+		}
+		const script = document.createElement("script");
+		script.src = src;
+		script.onload = () => {
+			script.remove();
+			resolve();
+		};
+		script.onerror = () => {
+			script.remove();
+			reject(new Error(`${src} did not load`));
+		};
+		document.head.append(script);
+	});
+}
+
+function setOpen(store, open) {
+	store.set({ ui: { ...store.get().ui, open } });
 }
 
 async function refreshSummary(store, api) {

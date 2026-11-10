@@ -8,7 +8,7 @@ export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 	element.className = "launcher";
 	element.innerHTML = `
 		<button type="button" class="launcher-toggle">${ICONS.chevron}</button>
-		<button type="button" class="launcher-main" aria-expanded="false">
+		<button type="button" class="launcher-main" aria-haspopup="dialog" aria-expanded="false">
 			<span class="launcher-icon">${ICONS.bell}<span class="launcher-dot" hidden></span></span>
 			<span class="launcher-label">${escapeHtml(__("Attention Center"))}</span>
 			<span class="launcher-count" hidden></span>
