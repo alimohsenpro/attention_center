@@ -9,7 +9,8 @@ export function retitle(title, applied, count) {
 }
 
 // Frappe rewrites the title on every navigation; watching <title> puts the counter back each time.
-export function watchTitle(doc, Observer) {
+// `observe(callback)` returns a MutationObserver for the callback.
+export function watchTitle(doc, observe) {
 	let applied = "";
 	let count = "";
 
@@ -19,7 +20,7 @@ export function watchTitle(doc, Observer) {
 		if (next.title !== doc.title) doc.title = next.title;
 	}
 
-	const observer = new Observer(apply);
+	const observer = observe(apply);
 	observer.observe(doc.querySelector("title"), {
 		childList: true,
 		characterData: true,

@@ -14,6 +14,7 @@ const MIRRORED_ATTRIBUTES = ["dir", "lang", "data-theme"];
 const FIRST_FETCH_DELAY_MS = 1000;
 
 const guard = createGuard();
+const observe = (callback) => new MutationObserver(guard.safe(callback));
 
 guard.run(() => {
 	if (frappe.app instanceof frappe.Application) start();
@@ -29,7 +30,7 @@ function start() {
 	const shadow = createHost();
 	const store = createStore({ summary: null, prefs: boot.preferences, ui: { open: false } });
 	const api = createApi(createTransport(fetch, () => frappe.csrf_token));
-	const title = watchTitle(document, MutationObserver);
+	const title = watchTitle(document, observe);
 	guard.addCleanup(title.stop);
 	const launcher = createLauncher(shadow, {
 		onOpen: guard.safe(() =>
@@ -79,7 +80,7 @@ function mirrorPageAttributes(host) {
 		}
 	};
 	copy();
-	const observer = new MutationObserver(guard.safe(copy));
+	const observer = observe(copy);
 	observer.observe(page, { attributes: true, attributeFilter: MIRRORED_ATTRIBUTES });
 	guard.addCleanup(() => observer.disconnect());
 }

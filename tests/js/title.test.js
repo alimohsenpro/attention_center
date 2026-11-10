@@ -47,23 +47,23 @@ function fakeDocument(title) {
 		querySelector: (selector) => (selector === "title" ? element : null),
 	};
 	const watcher = { observed: null, disconnected: false };
-	class Observer {
-		constructor(callback) {
-			watcher.notify = callback;
-		}
-		observe(target, options) {
-			watcher.observed = { target, options };
-		}
-		disconnect() {
-			watcher.disconnected = true;
-		}
-	}
-	return { doc, element, watcher, Observer };
+	const observe = (callback) => {
+		watcher.notify = callback;
+		return {
+			observe(target, options) {
+				watcher.observed = { target, options };
+			},
+			disconnect() {
+				watcher.disconnected = true;
+			},
+		};
+	};
+	return { doc, element, watcher, observe };
 }
 
 test("the counter comes back after the page rewrites the title", () => {
-	const { doc, element, watcher, Observer } = fakeDocument("Home");
-	const title = watchTitle(doc, Observer);
+	const { doc, element, watcher, observe } = fakeDocument("Home");
+	const title = watchTitle(doc, observe);
 	assert.equal(watcher.observed.target, element);
 
 	title.set("3");
@@ -75,8 +75,8 @@ test("the counter comes back after the page rewrites the title", () => {
 });
 
 test("the observer reacting to its own write changes nothing", () => {
-	const { doc, watcher, Observer } = fakeDocument("Home");
-	const title = watchTitle(doc, Observer);
+	const { doc, watcher, observe } = fakeDocument("Home");
+	const title = watchTitle(doc, observe);
 	title.set("3");
 
 	watcher.notify();
@@ -86,8 +86,8 @@ test("the observer reacting to its own write changes nothing", () => {
 });
 
 test("the counter disappears when no action item is left", () => {
-	const { doc, Observer } = fakeDocument("Home");
-	const title = watchTitle(doc, Observer);
+	const { doc, observe } = fakeDocument("Home");
+	const title = watchTitle(doc, observe);
 	title.set("12");
 
 	title.set("");
@@ -96,8 +96,8 @@ test("the counter disappears when no action item is left", () => {
 });
 
 test("stopping removes the counter and stops watching", () => {
-	const { doc, watcher, Observer } = fakeDocument("Home");
-	const title = watchTitle(doc, Observer);
+	const { doc, watcher, observe } = fakeDocument("Home");
+	const title = watchTitle(doc, observe);
 	title.set("99+");
 
 	title.stop();
