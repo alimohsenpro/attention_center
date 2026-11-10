@@ -148,6 +148,12 @@ button {
 	inset-inline-end: -6px;
 }
 
+/* The counter badge takes the inline-end corner of the collapsed circle. */
+.launcher[data-collapsed] .launcher-dot {
+	inset-inline-end: auto;
+	inset-inline-start: -2px;
+}
+
 .launcher-toggle {
 	display: inline-flex;
 	align-items: center;
