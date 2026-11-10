@@ -1,17 +1,16 @@
 # yaml-language-server: $schema=https://platform.claude.com/schemas/ant/beta/environment.json
+#
+# The package lists are empty on purpose: the sandbox blocks plain-HTTP egress, so the
+# platform's own apt pre-install cannot reach the Ubuntu mirrors and times out.
+# scripts/dev/bench_up.sh switches the apt sources to HTTPS and installs what the bench
+# needs inside the session. (The lists are kept, empty, so `ant apply` clears earlier values.)
 name: ac-bench
 description: Cloud sandbox that can run a Frappe 15 bench (MariaDB, Redis) for Attention Center.
 config:
   type: cloud
   packages:
-    apt:
-      - mariadb-server
-      - mariadb-client
-      - libmariadb-dev
-      - pkg-config
-      - cron
-    pip:
-      - frappe-bench
+    apt: []
+    pip: []
   networking:
     type: limited
     allow_package_managers: true
