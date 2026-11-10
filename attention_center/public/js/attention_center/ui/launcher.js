@@ -2,7 +2,7 @@ import { escapeHtml } from "../util/escape.js";
 import { ICONS } from "./icons.js";
 
 // The floating control at the bottom inline-end corner [FR-UI-01]: the action count, a dot while an info
-// source has something new, and a toggle that collapses it to an icon.
+// source has something new, a toggle that collapses it to an icon, and a pulse when something new arrives.
 export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 	const element = document.createElement("div");
 	element.className = "launcher";
@@ -34,6 +34,12 @@ export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 				: __("Collapse the launcher");
 			toggle.setAttribute("aria-label", toggleLabel);
 			toggle.title = toggleLabel;
+		},
+		pulse() {
+			element.removeAttribute("data-pulse");
+			// Reading the layout ends a pulse still running, so that this one starts from the beginning.
+			void element.offsetWidth;
+			element.setAttribute("data-pulse", "");
 		},
 	};
 }
