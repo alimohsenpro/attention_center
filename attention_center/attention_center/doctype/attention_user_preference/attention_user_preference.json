@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "autoname": "field:user",
+ "creation": "2026-11-10 12:48:58.272134",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "user",
+  "sound_scope",
+  "tone",
+  "volume",
+  "dnd_until",
+  "column_break",
+  "auto_open_on_login",
+  "display_mode",
+  "launcher_collapsed",
+  "state_section",
+  "watermarks",
+  "last_auto_open_sid"
+ ],
+ "fields": [
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "sound_scope",
+   "fieldtype": "Select",
+   "label": "Sound Scope",
+   "options": "\nUrgent Only\nAction Items\nEverything"
+  },
+  {
+   "fieldname": "tone",
+   "fieldtype": "Select",
+   "label": "Tone",
+   "options": "\nchime\nknock\npulse\ntelegraph\ndrop\nurgent\nimmediate\nreminder"
+  },
+  {
+   "fieldname": "volume",
+   "fieldtype": "Data",
+   "label": "Volume"
+  },
+  {
+   "fieldname": "dnd_until",
+   "fieldtype": "Datetime",
+   "label": "Do Not Disturb Until"
+  },
+  {
+   "fieldname": "column_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Default",
+   "fieldname": "auto_open_on_login",
+   "fieldtype": "Select",
+   "label": "Auto Open on Login",
+   "options": "Default\nYes\nNo"
+  },
+  {
+   "default": "Default",
+   "fieldname": "display_mode",
+   "fieldtype": "Select",
+   "label": "Display Mode",
+   "options": "Default\nDialog\nPanel\nDrawer"
+  },
+  {
+   "default": "0",
+   "fieldname": "launcher_collapsed",
+   "fieldtype": "Check",
+   "label": "Launcher Collapsed"
+  },
+  {
+   "fieldname": "state_section",
+   "fieldtype": "Section Break",
+   "label": "State"
+  },
+  {
+   "fieldname": "watermarks",
+   "fieldtype": "JSON",
+   "label": "Watermarks"
+  },
+  {
+   "fieldname": "last_auto_open_sid",
+   "fieldtype": "Data",
+   "label": "Last Auto Open Session Hash"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-10 12:48:58.272134",
+ "modified_by": "Administrator",
+ "module": "Attention Center",
+ "name": "Attention User Preference",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "System Manager"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

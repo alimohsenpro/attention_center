@@ -1,0 +1,180 @@
+{
+ "actions": [],
+ "creation": "2026-11-10 12:48:57.988412",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "hide_standard_bell",
+  "user_defaults_section",
+  "default_display_mode",
+  "default_auto_open_on_login",
+  "default_sound_scope",
+  "user_defaults_column",
+  "default_tone",
+  "default_volume",
+  "tones_section",
+  "urgent_tone",
+  "immediate_tone",
+  "reminder_tone",
+  "timing_section",
+  "reminder_interval_hours",
+  "coalesce_seconds",
+  "heartbeat_seconds",
+  "timing_column",
+  "summary_cache_ttl",
+  "page_size"
+ ],
+ "fields": [
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "default": "0",
+   "description": "Hides the notification bell of the standard navbar (CSS only)",
+   "fieldname": "hide_standard_bell",
+   "fieldtype": "Check",
+   "label": "Hide Standard Bell"
+  },
+  {
+   "description": "Each user can override these in their own settings",
+   "fieldname": "user_defaults_section",
+   "fieldtype": "Section Break",
+   "label": "Defaults for Users"
+  },
+  {
+   "default": "Dialog",
+   "fieldname": "default_display_mode",
+   "fieldtype": "Select",
+   "label": "Default Display Mode",
+   "options": "Dialog\nPanel\nDrawer"
+  },
+  {
+   "default": "1",
+   "fieldname": "default_auto_open_on_login",
+   "fieldtype": "Check",
+   "label": "Default Auto Open on Login"
+  },
+  {
+   "default": "Action Items",
+   "fieldname": "default_sound_scope",
+   "fieldtype": "Select",
+   "label": "Default Sound Scope",
+   "options": "Urgent Only\nAction Items\nEverything"
+  },
+  {
+   "fieldname": "user_defaults_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "chime",
+   "fieldname": "default_tone",
+   "fieldtype": "Select",
+   "label": "Default Tone",
+   "options": "chime\nknock\npulse\ntelegraph\ndrop\nurgent\nimmediate\nreminder"
+  },
+  {
+   "default": "60",
+   "fieldname": "default_volume",
+   "fieldtype": "Int",
+   "label": "Default Volume"
+  },
+  {
+   "fieldname": "tones_section",
+   "fieldtype": "Section Break",
+   "label": "Organisation Tones"
+  },
+  {
+   "default": "urgent",
+   "fieldname": "urgent_tone",
+   "fieldtype": "Select",
+   "label": "Urgent Tone",
+   "options": "chime\nknock\npulse\ntelegraph\ndrop\nurgent\nimmediate\nreminder"
+  },
+  {
+   "default": "immediate",
+   "fieldname": "immediate_tone",
+   "fieldtype": "Select",
+   "label": "Immediate Tone",
+   "options": "chime\nknock\npulse\ntelegraph\ndrop\nurgent\nimmediate\nreminder"
+  },
+  {
+   "default": "reminder",
+   "fieldname": "reminder_tone",
+   "fieldtype": "Select",
+   "label": "Reminder Tone",
+   "options": "chime\nknock\npulse\ntelegraph\ndrop\nurgent\nimmediate\nreminder"
+  },
+  {
+   "fieldname": "timing_section",
+   "fieldtype": "Section Break",
+   "label": "Timing"
+  },
+  {
+   "default": "2",
+   "description": "0 turns reminders off",
+   "fieldname": "reminder_interval_hours",
+   "fieldtype": "Float",
+   "label": "Reminder Interval Hours"
+  },
+  {
+   "default": "10",
+   "fieldname": "coalesce_seconds",
+   "fieldtype": "Int",
+   "label": "Coalesce Seconds"
+  },
+  {
+   "default": "300",
+   "fieldname": "heartbeat_seconds",
+   "fieldtype": "Int",
+   "label": "Heartbeat Seconds"
+  },
+  {
+   "fieldname": "timing_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "60",
+   "description": "Seconds",
+   "fieldname": "summary_cache_ttl",
+   "fieldtype": "Int",
+   "label": "Summary Cache TTL"
+  },
+  {
+   "default": "10",
+   "fieldname": "page_size",
+   "fieldtype": "Int",
+   "label": "Page Size"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-11-10 12:56:53.436247",
+ "modified_by": "Administrator",
+ "module": "Attention Center",
+ "name": "Attention Center Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "read": 1,
+   "role": "Attention Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

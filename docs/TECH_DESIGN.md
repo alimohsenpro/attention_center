@@ -71,13 +71,17 @@ title-cased English form and are translated.
 | `hide_standard_bell` | Check | 0 | CSS-only, stock v15 navbar selector |
 
 Permissions: `System Manager`, `Attention Manager` read/write. Read through
-`frappe.get_cached_doc`.
+`frappe.get_cached_doc`. The four tone selects list every id in `tones.json`. Frappe stores a
+Single's defaults once, at install (`frappe.installer.init_singles`); `after_migrate`
+(`install.py`) stores the default of every field that still has no stored value, so a field added
+by a later release does not read as empty on existing sites. The role `Attention Manager` ships
+as a fixture.
 
 ### 3.2 `Attention Source` (name = `key`) [FR-SRC-01..03]
 
 | Field | Type | Notes |
 |---|---|---|
-| `key` | Data, unique, `autoname: field:key` | `app.identifier`; `^[a-z0-9_]+(\.[a-z0-9_]+)+$` |
+| `key` | Data, unique, set only once, `autoname: field:key` | `app.identifier`; `^[a-z0-9_]+(\.[a-z0-9_]+)+$` |
 | `label` | Data, translatable | |
 | `kind` | Select `Action\nInfo` | |
 | `source_type` | Select `DocType Query\nPython` | |
@@ -107,9 +111,22 @@ operators (`=, !=, >, <, >=, <=, in, not in, like, is`), references existing fie
 placeholders are only `{user}`, `{today}`; `list_route` starts with `/app/`. System sources
 reject edits to definition fields. Permissions: `System Manager`, `Attention Manager`.
 
+Also enforced: `priority_map_json` is an object whose values are `urgent`, `immediate` or `normal`
+and needs `priority_field`; `in`/`not in` take a list, other operators a single value, `is` takes
+`set` or `not set`; a `DocType Query` source leaves the Python fields empty; a `Python` source
+names `get_count` and `get_items`. Definition fields are everything except `enabled`,
+`sort_order`, `label`, `roles` and `user_groups` [FR-SRC-01 AC2].
+
+Origin: Frappe does not enforce read-only fields on the server, so the controller does. Only a
+save with `doc.flags.from_hooks = True` may set or clear `is_system`, set `app`, or change the
+definition of a system source; the registry sync (§4.6) is the only code that sets this flag. A
+client cannot send it: `flags` is a reserved key that `frappe.get_doc` ignores.
+
 ### 3.3 `Attention User Preference` (name = user) [FR-SET-02]
 
-`user` (Link User, unique), `sound_scope`, `tone`, `volume`, `dnd_until` (Datetime),
+`user` (Link User, unique), `sound_scope` (Select, empty or one of the settings scopes), `tone`
+(Select, empty or a tone id), `volume` (Data: empty or a whole number 0–100, because an Int column
+cannot be empty), `dnd_until` (Datetime),
 `auto_open_on_login` (Select `Default\nYes\nNo`), `display_mode` (Select `Default\nDialog\nPanel\nDrawer`),
 `launcher_collapsed` (Check), `watermarks` (JSON: `{source_key: iso_datetime}`),
 `last_auto_open_sid` (Data, hash of the session id). Empty/`Default` = inherit settings.

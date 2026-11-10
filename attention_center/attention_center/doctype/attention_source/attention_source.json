@@ -1,0 +1,269 @@
+{
+ "actions": [],
+ "autoname": "field:key",
+ "creation": "2026-11-10 12:48:58.117252",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "key",
+  "label",
+  "kind",
+  "source_type",
+  "general_column",
+  "enabled",
+  "sort_order",
+  "is_system",
+  "app",
+  "icon",
+  "list_route",
+  "query_section",
+  "reference_doctype",
+  "filters_json",
+  "priority_map_json",
+  "recipient_fields",
+  "query_column",
+  "title_field",
+  "from_field",
+  "date_field",
+  "priority_field",
+  "due_field",
+  "status_field",
+  "python_section",
+  "get_count",
+  "get_items",
+  "get_recipients",
+  "watch_doctypes",
+  "targeting_section",
+  "roles",
+  "user_groups"
+ ],
+ "fields": [
+  {
+   "description": "app.identifier, for example my_app.open_requests",
+   "fieldname": "key",
+   "fieldtype": "Data",
+   "label": "Key",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "label",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Label",
+   "reqd": 1,
+   "translatable": 1
+  },
+  {
+   "fieldname": "kind",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Kind",
+   "options": "Action\nInfo",
+   "reqd": 1
+  },
+  {
+   "default": "DocType Query",
+   "fieldname": "source_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Source Type",
+   "options": "DocType Query\nPython",
+   "reqd": 1
+  },
+  {
+   "fieldname": "general_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "sort_order",
+   "fieldtype": "Int",
+   "label": "Sort Order"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_system",
+   "fieldtype": "Check",
+   "label": "Is System",
+   "read_only": 1
+  },
+  {
+   "fieldname": "app",
+   "fieldtype": "Data",
+   "label": "App",
+   "read_only": 1
+  },
+  {
+   "fieldname": "icon",
+   "fieldtype": "Data",
+   "label": "Icon"
+  },
+  {
+   "description": "Optional \"view all\" route starting with /app/",
+   "fieldname": "list_route",
+   "fieldtype": "Data",
+   "label": "List Route"
+  },
+  {
+   "depends_on": "eval:doc.source_type=='DocType Query'",
+   "fieldname": "query_section",
+   "fieldtype": "Section Break",
+   "label": "DocType Query"
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType"
+  },
+  {
+   "description": "List of [field, operator, value]. Values may use {user} and {today}.",
+   "fieldname": "filters_json",
+   "fieldtype": "Code",
+   "label": "Filters JSON",
+   "options": "JSON"
+  },
+  {
+   "description": "Maps a value of the priority field to urgent, immediate or normal",
+   "fieldname": "priority_map_json",
+   "fieldtype": "Code",
+   "label": "Priority Map JSON",
+   "options": "JSON"
+  },
+  {
+   "description": "Comma-separated fieldnames holding a user id",
+   "fieldname": "recipient_fields",
+   "fieldtype": "Small Text",
+   "label": "Recipient Fields"
+  },
+  {
+   "fieldname": "query_column",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "title_field",
+   "fieldtype": "Data",
+   "label": "Title Field"
+  },
+  {
+   "fieldname": "from_field",
+   "fieldtype": "Data",
+   "label": "From Field"
+  },
+  {
+   "fieldname": "date_field",
+   "fieldtype": "Data",
+   "label": "Date Field"
+  },
+  {
+   "fieldname": "priority_field",
+   "fieldtype": "Data",
+   "label": "Priority Field"
+  },
+  {
+   "fieldname": "due_field",
+   "fieldtype": "Data",
+   "label": "Due Field"
+  },
+  {
+   "fieldname": "status_field",
+   "fieldtype": "Data",
+   "label": "Status Field"
+  },
+  {
+   "depends_on": "eval:doc.source_type=='Python'",
+   "fieldname": "python_section",
+   "fieldtype": "Section Break",
+   "label": "Python"
+  },
+  {
+   "fieldname": "get_count",
+   "fieldtype": "Data",
+   "label": "Get Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "get_items",
+   "fieldtype": "Data",
+   "label": "Get Items",
+   "read_only": 1
+  },
+  {
+   "fieldname": "get_recipients",
+   "fieldtype": "Data",
+   "label": "Get Recipients",
+   "read_only": 1
+  },
+  {
+   "fieldname": "watch_doctypes",
+   "fieldtype": "Small Text",
+   "label": "Watch DocTypes",
+   "read_only": 1
+  },
+  {
+   "description": "Leave empty to show the source to all desk users",
+   "fieldname": "targeting_section",
+   "fieldtype": "Section Break",
+   "label": "Targeting"
+  },
+  {
+   "fieldname": "roles",
+   "fieldtype": "Table MultiSelect",
+   "label": "Roles",
+   "options": "Attention Source Role"
+  },
+  {
+   "fieldname": "user_groups",
+   "fieldtype": "Table MultiSelect",
+   "label": "User Groups",
+   "options": "Attention Source User Group"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-10 13:44:51.771960",
+ "modified_by": "Administrator",
+ "module": "Attention Center",
+ "name": "Attention Source",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Attention Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "sort_order",
+ "sort_order": "ASC",
+ "states": [],
+ "title_field": "label"
+}
