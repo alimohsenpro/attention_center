@@ -5,6 +5,7 @@ from collections.abc import Iterable
 
 import frappe
 from frappe.model.document import Document
+from frappe.model.workflow import get_workflow_name
 from frappe.permissions import ALL_USER_ROLE, GUEST_ROLE, SYSTEM_USER_ROLE
 
 from attention_center.sources.builtin import APPROVALS
@@ -15,14 +16,14 @@ AUDIENCE_CAP = 200
 IMPLICIT_ROLES = frozenset((GUEST_ROLE, ALL_USER_ROLE, SYSTEM_USER_ROLE))
 
 
-def get_recipients(source: frappe._dict, doc: Document) -> list[str] | None:
-	"""The users whose counts of `source` the change of `doc` may move.
+def get_recipients(source: frappe._dict, doc: Document, method: str | None) -> list[str] | None:
+	"""The users whose counts of `source` the change of `doc` (document event `method`) may move.
 
 	None when they cannot be listed or are more than AUDIENCE_CAP: the caller then nudges the whole site.
 	`source` is an entry of registry.get_watch_map(). Runs in the actor's request, as the actor.
 	"""
 	if source.key == APPROVALS["key"]:
-		return _approvers(doc)
+		return _approvers(doc, method)
 	if source.source_type == "Python":
 		return _from_callable(source, doc)
 	return _from_fields(source, doc)
@@ -66,10 +67,36 @@ def _from_callable(source: frappe._dict, doc: Document) -> list[str] | None:
 	return audience(users)
 
 
-def _approvers(doc: Document) -> list[str] | None:
-	"""Holders of the roles a Workflow Action is open to: the approvals source counts it for them (§4.5)."""
-	versions = [version for version in (doc, doc.get_doc_before_save()) if version]
-	roles = {row.role for version in versions for row in version.permitted_roles}
+def _approvers(doc: Document, method: str | None) -> list[str] | None:
+	"""Holders of the roles a Workflow Action of the change is open to: approvals count it for them (§4.5)."""
+	if doc.doctype == "Workflow Action":
+		versions = [version for version in (doc, doc.get_doc_before_save()) if version]
+		return _role_holders({row.role for version in versions for row in version.permitted_roles})
+	return _role_holders(_roles_of_left_state(doc, method))
+
+
+def _roles_of_left_state(doc: Document, method: str | None) -> set[str]:
+	"""The roles allowed to act on the workflow state `doc` leaves, by a transition or by being deleted.
+
+	Frappe completes or deletes the open action of that state with a query, and has done so before this app's
+	handler runs, so the roles come from the workflow definition. An insert or a save that keeps the state
+	leaves none: the actions it creates nudge their own role holders.
+	"""
+	workflow_name = get_workflow_name(doc.doctype)
+	if not workflow_name:
+		# Deactivated after this request read the watch map.
+		return set()
+	workflow = frappe.get_cached_doc("Workflow", workflow_name)
+	state = doc.get(workflow.workflow_state_field)
+	if method != "on_trash":
+		before = doc.get_doc_before_save()
+		if not before or before.get(workflow.workflow_state_field) == state:
+			return set()
+		state = before.get(workflow.workflow_state_field)
+	return {transition.allowed for transition in workflow.transitions if transition.state == state}
+
+
+def _role_holders(roles: set[str]) -> list[str] | None:
 	if roles & IMPLICIT_ROLES:
 		return None
 	if not roles:

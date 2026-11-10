@@ -38,7 +38,7 @@ def on_doc_event(doc: Document, method: str | None = None) -> None:
 	try:
 		sources = registry.get_watch_map().get(doc.doctype)
 		if sources:
-			_queue_document(doc, sources)
+			_queue_document(doc, sources, method)
 	except Exception as error:
 		_logger().error(f"nudges for a {doc.doctype} change failed: {type(error).__name__}")
 
@@ -56,9 +56,9 @@ def nudge(users: list[str], source_key: str) -> None:
 	_queue(recipients.audience(users), source_key)
 
 
-def _queue_document(doc: Document, sources: list[frappe._dict]) -> None:
+def _queue_document(doc: Document, sources: list[frappe._dict], method: str | None) -> None:
 	for source in sources:
-		_queue(recipients.get_recipients(source, doc), source.key)
+		_queue(recipients.get_recipients(source, doc, method), source.key)
 
 
 def _queue(users: list[str] | None, source_key: str) -> None:

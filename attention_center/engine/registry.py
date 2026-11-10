@@ -5,9 +5,11 @@ import logging
 import time
 
 import frappe
+from frappe.model.document import Document
 from frappe.utils import cstr
 
 from attention_center.engine.contract import ContractError, validate_source_def
+from attention_center.sources.builtin import APPROVALS
 
 SOURCE_DOCTYPE = "Attention Source"
 VISIBLE_CACHE = "attention_center:visible"
@@ -160,8 +162,8 @@ def get_visible_sources(user: str) -> list[frappe._dict]:
 def get_watch_map() -> dict[str, list[frappe._dict]]:
 	"""The enabled sources whose counts a change of a DocType may move, by DocType [FR-RT-01].
 
-	A declarative source watches its DocType, a python source its `watch_doctypes`. Each entry holds what
-	recipients.get_recipients needs. Cached like the visible sources, and kept for the rest of the request
+	A declarative source watches its DocType, a python source its `watch_doctypes`; approvals also watch the
+	DocTypes of the active workflows. Each entry holds what recipients.get_recipients needs. Cached like the visible sources, and kept for the rest of the request
 	by frappe.cache, so that a document event on an unwatched DocType costs a dict lookup [FR-RT-01 AC1].
 	"""
 	cached = frappe.cache.get_value(WATCH_CACHE)
@@ -182,6 +184,17 @@ def clear_visibility_cache() -> None:
 
 def _delete_visibility_cache() -> None:
 	frappe.cache.delete_value([VISIBLE_CACHE, WATCH_CACHE])
+
+
+def on_workflow_change(doc: Document, method: str | None = None) -> None:
+	"""doc_events handler of Workflow: which DocTypes have an active workflow is part of the watch map."""
+	_delete_watch_map()
+	# A request reading the workflows before this transaction commits would cache the old state again.
+	frappe.db.after_commit.add(_delete_watch_map)
+
+
+def _delete_watch_map() -> None:
+	frappe.cache.delete_value(WATCH_CACHE)
 
 
 def _compute_watch_map() -> dict[str, list[frappe._dict]]:
@@ -211,9 +224,18 @@ def _compute_watch_map() -> dict[str, list[frappe._dict]]:
 			if source.source_type == "DocType Query"
 			else _split(source.watch_doctypes)
 		)
+		if source.key == APPROVALS["key"]:
+			# Frappe completes and deletes a document's Workflow Actions with queries, which fire no event:
+			# only the change of the document itself shows that its approvers' counts moved (§6).
+			doctypes += _active_workflow_doctypes()
 		for doctype in doctypes:
 			watched.setdefault(doctype, []).append(entry)
 	return watched
+
+
+def _active_workflow_doctypes() -> list[str]:
+	# get_all: the workflow definitions only route document events to recipients; no user sees them.
+	return frappe.get_all("Workflow", filters={"is_active": 1}, pluck="document_type")
 
 
 def _compute_visible_sources(user: str) -> list[frappe._dict]:

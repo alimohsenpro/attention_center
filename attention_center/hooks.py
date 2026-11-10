@@ -155,7 +155,12 @@ doc_events = {
 	"*": {
 		"on_change": "attention_center.engine.realtime.on_doc_event",
 		"on_trash": "attention_center.engine.realtime.on_doc_event",
-	}
+	},
+	# after_delete: the row is still there in on_trash, where the "*" handler reads the watch map again
+	"Workflow": {
+		"on_change": "attention_center.engine.registry.on_workflow_change",
+		"after_delete": "attention_center.engine.registry.on_workflow_change",
+	},
 }
 
 # Scheduled Tasks
