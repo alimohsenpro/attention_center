@@ -53,7 +53,12 @@ install_bench() {
     log "installing the bench CLI"
     quiet pip install --quiet frappe-bench || quiet pip install --quiet --break-system-packages frappe-bench
   fi
-  if [ ! -d "$BENCH_DIR/apps/frappe" ]; then
+  # bench init records frappe in apps.txt as its last step, so a bench without it was interrupted.
+  if ! grep -qx frappe "$BENCH_DIR/sites/apps.txt" 2>/dev/null; then
+    if [ -e "$BENCH_DIR" ]; then
+      echo "$BENCH_DIR exists but is not a complete bench (interrupted run?). Remove it and run again."
+      return 1
+    fi
     log "bench init ($FRAPPE_BRANCH)"
     # bench exits as root unless the config in the working directory names a frappe_user.
     # A created bench records the invoking user, so only init needs this scratch config.
@@ -74,9 +79,10 @@ install_app() {
     quiet ./env/bin/pip install --quiet -e apps/attention_center
   fi
   grep -qx "attention_center" sites/apps.txt || printf '\nattention_center\n' >> sites/apps.txt
-  if [ ! -d "sites/$SITE" ]; then
+  # A site whose creation was interrupted has a directory but no Frappe; --force recreates it.
+  if ! bench --site "$SITE" list-apps 2>/dev/null | grep '^frappe ' >/dev/null; then
     log "creating site $SITE"
-    quiet bench new-site --db-root-password "$DB_ROOT_PASSWORD" --admin-password admin "$SITE"
+    quiet bench new-site --force --db-root-password "$DB_ROOT_PASSWORD" --admin-password admin "$SITE"
   fi
   log "installing attention_center on $SITE, enabling tests, migrating"
   quiet bench --site "$SITE" install-app attention_center
