@@ -87,36 +87,40 @@ def _discard() -> None:
 
 
 def _send() -> None:
+	"""after_commit callback: deliver the transaction's nudges."""
+	pending = getattr(frappe.local, PENDING, None)
+	_discard()
+	if pending is None:
+		return
+	# Runs after the commit: an exception would reach the request whose changes are already saved.
+	try:
+		_publish(pending)
+	except Exception as error:
+		_logger().error(f"sending nudges failed: {type(error).__name__}")
+
+
+def _publish(pending: _Pending) -> None:
 	"""Drop the cached counts the transaction changed, then nudge each user once and the site at most once.
 
 	The actor in a user nudge lets the actor's own browser stay quiet (FR-ALERT-04). A broadcast names no
 	actor, since every desk user receives it; its sources are left out of the user nudges.
 	"""
-	pending = getattr(frappe.local, PENDING, None)
-	_discard()
-	if pending is None:
-		return
-
 	sources_by_user: dict[str, list[str]] = defaultdict(list)
 	for user, key in sorted(pending.pairs):
 		if key not in pending.broadcast:
 			sources_by_user[user].append(key)
 
-	# Runs after the commit: an exception would reach the request whose changes are already saved.
-	try:
-		for key in pending.broadcast:
-			frappe.cache.delete_value(runner.COUNT_CACHE.format(key))
-		for user, keys in sources_by_user.items():
-			for key in keys:
-				frappe.cache.hdel(runner.COUNT_CACHE.format(key), user)
+	for key in pending.broadcast:
+		frappe.cache.delete_value(runner.COUNT_CACHE.format(key))
+	for user, keys in sources_by_user.items():
+		for key in keys:
+			frappe.cache.hdel(runner.COUNT_CACHE.format(key), user)
 
-		actor = frappe.session.user
-		for user, keys in sources_by_user.items():
-			frappe.publish_realtime(EVENT, {"sources": keys, "actor": actor}, user=user)
-		if pending.broadcast:
-			frappe.publish_realtime(EVENT, {"sources": sorted(pending.broadcast), "broadcast": True})
-	except Exception as error:
-		_logger().error(f"sending nudges failed: {type(error).__name__}")
+	actor = frappe.session.user
+	for user, keys in sources_by_user.items():
+		frappe.publish_realtime(EVENT, {"sources": keys, "actor": actor}, user=user)
+	if pending.broadcast:
+		frappe.publish_realtime(EVENT, {"sources": sorted(pending.broadcast), "broadcast": True})
 
 
 def _logger() -> logging.Logger:

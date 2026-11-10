@@ -69,7 +69,7 @@ def _from_callable(source: frappe._dict, doc: Document) -> list[str] | None:
 def _approvers(doc: Document) -> list[str] | None:
 	"""Holders of the roles a Workflow Action is open to: the approvals source counts it for them (§4.5)."""
 	versions = [version for version in (doc, doc.get_doc_before_save()) if version]
-	roles = {row.role for version in versions for row in version.get("permitted_roles") or []}
+	roles = {row.role for version in versions for row in version.permitted_roles}
 	if roles & IMPLICIT_ROLES:
 		return None
 	if not roles:
