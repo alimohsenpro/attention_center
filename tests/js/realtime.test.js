@@ -189,6 +189,71 @@ for (const [name, events, actor] of ACTOR_CASES) {
 	});
 }
 
+// A broadcast that waits out its random delay (4.5 s here) brings a change the user did not make: a request
+// sent meanwhile carries that change, so it names no actor even when it answers only the user's own nudges.
+const BROADCAST_WAIT_CASES = [
+	[
+		"a broadcast, then the user's nudge during its wait",
+		[
+			[10000, broadcastReceived],
+			[10500, nudgedBy(ME)],
+		],
+		[
+			{ at: 12000, actor: null },
+			{ at: 16000, actor: null },
+		],
+	],
+	[
+		"the user's nudge, then a broadcast before its request",
+		[
+			[10000, nudgedBy(ME)],
+			[10500, broadcastReceived],
+		],
+		[
+			{ at: 11500, actor: null },
+			{ at: 16500, actor: null },
+		],
+	],
+	[
+		"the user's nudge, its request, then a broadcast",
+		[
+			[10000, nudgedBy(ME)],
+			[12000, broadcastReceived],
+		],
+		[
+			{ at: 11500, actor: ME },
+			{ at: 18000, actor: null },
+		],
+	],
+	[
+		"a broadcast, its request, then the user's nudge",
+		[
+			[10000, broadcastReceived],
+			[17000, nudgedBy(ME)],
+		],
+		[
+			{ at: 16000, actor: null },
+			{ at: 18500, actor: ME },
+		],
+	],
+];
+
+for (const [name, events, expected] of BROADCAST_WAIT_CASES) {
+	test(`the actors of the refreshes after ${name}`, () => {
+		const loop = startLoop({ random: () => 0.9 });
+		loop.clock.to(10000);
+		loop.requests.length = 0;
+
+		for (const [at, happen] of events) {
+			loop.clock.to(at);
+			happen(loop);
+		}
+		loop.clock.to(30000);
+
+		assert.deepEqual(loop.requests, expected);
+	});
+}
+
 const OTHER_TRIGGERS = [
 	["the socket connects again", socketConnects],
 	["the browser is back online", backOnline],

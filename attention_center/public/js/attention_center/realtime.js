@@ -53,7 +53,9 @@ export function startRefreshLoop({
 
 	function send() {
 		debounce = null;
-		return refresh(burstActor);
+		// A request sent while a broadcast waits out its delay already carries that broadcast's change, which
+		// the burst's actor did not make.
+		return refresh(jitter === null ? burstActor : null);
 	}
 
 	function onNudge({ broadcast, actor }) {
