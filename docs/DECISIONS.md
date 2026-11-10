@@ -46,3 +46,6 @@ reopen them in code. If one blocks a task, escalate.
 ## Agent decisions
 
 Add one line per decision: `YYYY-MM-DD — task — decision — why`.
+
+- 2026-11-10 — M0-T1 — `bench_up.sh` builds Frappe's own assets when they are missing (11–12 s) — without them `/login` and the desk answer HTTP 500, so the sandbox bench could not be opened in a browser.
+- 2026-11-10 — M0-T1 — `bench_up.sh` recreates an incomplete `test_site` with `--force` but never deletes an incomplete bench directory; it stops with a message instead — the site is the script's own throwaway, while `BENCH_DIR` may point at a developer's real bench.
