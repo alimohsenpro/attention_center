@@ -83,7 +83,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "attention_center.install.before_install"
-after_install = "attention_center.install.after_install"
+# after_install = "attention_center.install.after_install"
 after_migrate = "attention_center.install.after_migrate"
 
 fixtures = [{"dt": "Role", "filters": [["name", "=", "Attention Manager"]]}]

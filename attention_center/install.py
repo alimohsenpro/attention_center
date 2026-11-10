@@ -3,17 +3,13 @@ import frappe
 SETTINGS = "Attention Center Settings"
 
 
-def after_install() -> None:
-	set_missing_settings_defaults()
-
-
 def after_migrate() -> None:
 	set_missing_settings_defaults()
 
 
 def set_missing_settings_defaults() -> None:
-	# A saved Single stores only the fields it had when saved, so a field added in a later
-	# release would read as empty instead of its default on sites that saved their settings.
+	# Frappe stores a Single's defaults once, at install. A settings field added by a later release
+	# has no stored value on existing sites and would read as empty instead of its default.
 	stored = frappe.db.get_singles_dict(SETTINGS)
 	missing = {
 		df.fieldname: df.default

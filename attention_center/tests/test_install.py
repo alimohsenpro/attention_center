@@ -1,7 +1,7 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
 
-from attention_center.install import after_install, after_migrate
+from attention_center.install import after_migrate
 
 SETTINGS = "Attention Center Settings"
 DOCTYPES = (
@@ -37,21 +37,13 @@ class TestInstall(FrappeTestCase):
 
 		self.assertEqual((role.desk_access, role.disabled), (1, 0))
 
-	def test_install_stores_every_settings_default(self):
-		frappe.db.delete("Singles", {"doctype": SETTINGS})
-
-		after_install()
-
-		self.assertEqual(stored_setting("enabled"), 1)
-		self.assertEqual(stored_setting("default_sound_scope"), "Action Items")
-		self.assertEqual(stored_setting("reminder_interval_hours"), 2)
-		self.assertEqual(frappe.get_single(SETTINGS).heartbeat_seconds, 300)
-
 	def test_migrate_fills_missing_settings_defaults_and_keeps_admin_values(self):
 		frappe.db.set_single_value(SETTINGS, "page_size", 25)
-		frappe.db.delete("Singles", {"doctype": SETTINGS, "field": "heartbeat_seconds"})
+		frappe.db.delete("Singles", {"doctype": SETTINGS, "field": ("in", ("heartbeat_seconds", "enabled"))})
+		frappe.get_cached_doc(SETTINGS)
 
 		after_migrate()
 
-		self.assertEqual(stored_setting("heartbeat_seconds"), 300)
+		self.assertEqual((stored_setting("heartbeat_seconds"), stored_setting("enabled")), (300, 1))
 		self.assertEqual(stored_setting("page_size"), 25)
+		self.assertEqual(frappe.get_cached_doc(SETTINGS).heartbeat_seconds, 300)

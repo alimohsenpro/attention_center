@@ -71,9 +71,11 @@ title-cased English form and are translated.
 | `hide_standard_bell` | Check | 0 | CSS-only, stock v15 navbar selector |
 
 Permissions: `System Manager`, `Attention Manager` read/write. Read through
-`frappe.get_cached_doc`. The four tone selects list every id in `tones.json`. `after_install` and
-`after_migrate` (`install.py`) store the default of every field that has no stored value: a saved
-Single keeps only the fields it had when saved, so a field added later would otherwise read as empty.
+`frappe.get_cached_doc`. The four tone selects list every id in `tones.json`. Frappe stores a
+Single's defaults once, at install (`frappe.installer.init_singles`); `after_migrate`
+(`install.py`) stores the default of every field that still has no stored value, so a field added
+by a later release does not read as empty on existing sites. The role `Attention Manager` ships
+as a fixture.
 
 ### 3.2 `Attention Source` (name = `key`) [FR-SRC-01..03]
 
