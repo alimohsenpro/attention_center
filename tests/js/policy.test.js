@@ -110,12 +110,15 @@ for (const [event, scope, toast, sticky, sound] of DECISION_TABLE) {
 
 for (const scope of SCOPES) {
 	test(`the periodic reminder with the sound scope "${scope}": a toast and the reminder tone`, () => {
-		assert.deepEqual(reminderAlert({ prefs: { sound_scope: scope, dnd_until: null }, now: NOW }), {
-			level: "reminder",
-			toast: true,
-			sticky: false,
-			sound: "reminder",
-		});
+		assert.deepEqual(
+			reminderAlert({ prefs: { sound_scope: scope, dnd_until: null }, now: NOW }),
+			{
+				level: "reminder",
+				toast: true,
+				sticky: false,
+				sound: "reminder",
+			}
+		);
 	});
 }
 
@@ -152,15 +155,22 @@ const DND_CASES = [
 ];
 
 for (const [name, dndUntil, active] of DND_CASES) {
-	test(`Do Not Disturb ${name} ${active ? "silences" : "leaves"} every sound and keeps every toast`, () => {
-		for (const [event, , toast, , sound] of DECISION_TABLE.filter((row) => row[1] === "Everything")) {
+	test(`Do Not Disturb ${name} ${
+		active ? "silences" : "leaves"
+	} every sound and keeps every toast`, () => {
+		for (const [event, , toast, , sound] of DECISION_TABLE.filter(
+			(row) => row[1] === "Everything"
+		)) {
 			const [previous, next] = EVENTS[event];
 			const [alert] = alertsFor({ previous, next, scope: "Everything", dndUntil });
 
 			assert.equal(alert.toast, toast, event);
 			assert.equal(alert.sound, active ? null : sound, event);
 		}
-		const reminder = reminderAlert({ prefs: { sound_scope: "Everything", dnd_until: dndUntil }, now: NOW });
+		const reminder = reminderAlert({
+			prefs: { sound_scope: "Everything", dnd_until: dndUntil },
+			now: NOW,
+		});
 		assert.equal(reminder.toast, true);
 		assert.equal(reminder.sound, active ? null : "reminder");
 	});
@@ -237,12 +247,7 @@ const NEW_ITEM_CASES = [
 		{ count: 4, latest: "2026-11-10T09:58:00" },
 		0,
 	],
-	[
-		"the source fails now",
-		{ count: 2, latest: "2026-11-10T09:00:00" },
-		{ state: "error" },
-		0,
-	],
+	["the source fails now", { count: 2, latest: "2026-11-10T09:00:00" }, { state: "error" }, 0],
 ];
 
 for (const [name, before, after, count] of NEW_ITEM_CASES) {
@@ -257,7 +262,9 @@ for (const [name, before, after, count] of NEW_ITEM_CASES) {
 }
 
 test("a source that was not in the previous summary raises no alert", () => {
-	const previous = summary(source("app.tasks", "action", { count: 1, latest: "2026-11-10T09:00:00" }));
+	const previous = summary(
+		source("app.tasks", "action", { count: 1, latest: "2026-11-10T09:00:00" })
+	);
 	const next = summary(
 		source("app.tasks", "action", { count: 1, latest: "2026-11-10T09:00:00" }),
 		source("app.orders", "action", { count: 4, urgent: 2, latest: "2026-11-10T09:58:00" })
@@ -302,7 +309,21 @@ test("each source that gained items raises its own alert, in summary order", () 
 	);
 
 	assert.deepEqual(alertsFor({ previous, next, scope: "Everything" }), [
-		{ source: "app.tasks", level: "normal", count: 2, toast: true, sticky: false, sound: "standard" },
-		{ source: "app.news", level: "info", count: 2, toast: false, sticky: false, sound: "standard" },
+		{
+			source: "app.tasks",
+			level: "normal",
+			count: 2,
+			toast: true,
+			sticky: false,
+			sound: "standard",
+		},
+		{
+			source: "app.news",
+			level: "info",
+			count: 2,
+			toast: false,
+			sticky: false,
+			sound: "standard",
+		},
 	]);
 });

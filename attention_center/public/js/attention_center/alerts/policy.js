@@ -31,13 +31,14 @@ export function newItemAlerts({ previous, summary, actor, user, prefs, now }) {
 		if (!count) continue;
 		const level = alertLevel(before.get(source.key), source);
 		const rule = RULES[level];
+		const audible = !silent && (!rule.scopes || rule.scopes.includes(prefs.sound_scope));
 		alerts.push({
 			source: source.key,
 			level,
 			count,
 			toast: rule.toast,
 			sticky: level === "immediate",
-			sound: silent || (rule.scopes && !rule.scopes.includes(prefs.sound_scope)) ? null : rule.sound,
+			sound: audible ? rule.sound : null,
 		});
 	}
 	return alerts;

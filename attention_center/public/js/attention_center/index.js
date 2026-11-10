@@ -76,7 +76,13 @@ function start() {
 	store.subscribe(render);
 	render(store.get());
 	store.onSummary(
-		guard.safe(alertOnNewItems(store, { launcher, toasts, coalesceSeconds: boot.settings.coalesce_seconds }))
+		guard.safe(
+			alertOnNewItems(store, {
+				launcher,
+				toasts,
+				coalesceSeconds: boot.settings.coalesce_seconds,
+			})
+		)
 	);
 
 	// The first summary is fetched after the boot, never during it [NFR-PERF-02].

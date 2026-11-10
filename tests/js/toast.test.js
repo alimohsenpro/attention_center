@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { newItemsText, toastToDrop } from "../../attention_center/public/js/attention_center/ui/toast.js";
+import {
+	newItemsText,
+	toastToDrop,
+} from "../../attention_center/public/js/attention_center/ui/toast.js";
 
 // Frappe's __() with its placeholder substitution, without a translation.
 globalThis.__ = (text, args = []) => text.replace(/\{(\d+)\}/g, (_, index) => args[index]);
@@ -13,7 +16,9 @@ const TEXT_CASES = [
 ];
 
 for (const [count, label, expected] of TEXT_CASES) {
-	test(`the toast for ${count} new items from ${label ?? "several sources"} reads "${expected}"`, () => {
+	test(`the toast for ${count} new items from ${
+		label ?? "several sources"
+	} reads "${expected}"`, () => {
 		assert.equal(newItemsText(count, label), expected);
 	});
 }
