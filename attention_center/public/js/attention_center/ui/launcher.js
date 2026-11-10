@@ -27,7 +27,7 @@ export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 			count.textContent = badge.count;
 			count.hidden = !badge.count;
 			dot.hidden = !badge.unseen;
-			main.setAttribute("aria-label", mainLabel(badge));
+			main.setAttribute("aria-label", launcherLabel(badge));
 			main.setAttribute("aria-expanded", String(open));
 			const toggleLabel = collapsed
 				? __("Expand the launcher")
@@ -38,7 +38,12 @@ export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 	};
 }
 
-function mainLabel({ count, unseen }) {
+// The launcher's accessible name, from the badge's count text and unseen flag.
+export function launcherLabel({ count, unseen }) {
+	if (count === "1" && unseen) {
+		return __("Attention Center: 1 item needs your action, and new information is waiting");
+	}
+	if (count === "1") return __("Attention Center: 1 item needs your action");
 	if (count && unseen) {
 		return __("Attention Center: {0} items need your action, and new information is waiting", [
 			count,

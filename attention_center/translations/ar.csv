@@ -151,6 +151,8 @@
 "Users to nudge must be a list of user ids.","يجب أن يكون المستخدمون المطلوب تنبيههم قائمة بمعرّفات المستخدمين.",""
 "What needs your attention","ما يحتاج انتباهك",""
 "Attention Center: {0} items need your action","مركز الانتباه: عدد ما يحتاج إجراءً منك {0}",""
+"Attention Center: 1 item needs your action","مركز الانتباه: عنصر واحد يحتاج إجراءً منك",""
+"Attention Center: 1 item needs your action, and new information is waiting","مركز الانتباه: عنصر واحد يحتاج إجراءً منك، ويوجد جديد للعلم",""
 "Attention Center: new information is waiting","مركز الانتباه: يوجد جديد للعلم",""
 "Attention Center: {0} items need your action, and new information is waiting","مركز الانتباه: عدد ما يحتاج إجراءً منك {0}، ويوجد جديد للعلم",""
 "Collapse the launcher","تصغير الزر العائم",""
