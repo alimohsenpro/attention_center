@@ -4,7 +4,8 @@ import { ICONS } from "./icons.js";
 
 // The items of a tab as a table [FR-UI-02]: item, type (and source in the All tab), from, date, priority and
 // due date, status, and an "Open" link. Every value is set as text. Overdue, urgent and immediate rows carry a
-// worded label with an icon, not only a colour (AC2).
+// worded label with an icon, not only a colour (AC2). Below 720 px of window width the stylesheet shows each
+// row as a card instead [FR-UI-04]; each cell's class names its place in the card.
 //
 // `entries` are {source, item} pairs; `sourceLabel(key)` names a source; `format` has `age(iso)` and
 // `date(iso)`; `onOpenClick` handles a click on an item's "Open" link, whose href is the item's route.
@@ -42,17 +43,18 @@ function row(item, sourceName, format, onClick) {
 	const title = element("td", "cell-item");
 	title.append(element("span", "item-title", item.title));
 
-	const type = element("td");
+	const type = element("td", "cell-type");
 	if (item.type_label) type.append(element("span", null, item.type_label));
 	if (sourceName) type.append(element("span", "muted", sourceName));
 
-	tr.append(title, type, element("td", null, item.from_label), dateCell(item.date, format));
+	const from = element("td", "cell-from", item.from_label);
+	tr.append(title, type, from, dateCell(item.date, format));
 	tr.append(priorityCell(item, format), statusCell(item), openCell(item, onClick));
 	return tr;
 }
 
 function dateCell(iso, format) {
-	const td = element("td");
+	const td = element("td", "cell-date");
 	if (iso) {
 		const time = element("time", null, format.age(iso));
 		time.dateTime = iso;
@@ -63,7 +65,7 @@ function dateCell(iso, format) {
 }
 
 function priorityCell(item, format) {
-	const td = element("td");
+	const td = element("td", "cell-priority");
 	td.append(priorityLabel(item.priority));
 	if (item.overdue) {
 		td.append(pill(__("Overdue", null, "Attention Center"), "overdue"));
@@ -81,7 +83,7 @@ function priorityLabel(priority) {
 }
 
 function statusCell(item) {
-	const td = element("td");
+	const td = element("td", "cell-status");
 	if (item.status_label) {
 		const status = element("span", "status", item.status_label);
 		status.dataset.color = item.status_color;
@@ -91,7 +93,7 @@ function statusCell(item) {
 }
 
 function openCell(item, onClick) {
-	const td = element("td");
+	const td = element("td", "cell-open");
 	if (!isDeskRoute(item.route)) return td;
 	const link = element("a", "open-link", __("Open", null, "Attention Center"));
 	link.href = item.route;

@@ -186,3 +186,6 @@
 "Some sources could not be loaded: {0}","تعذّر تحميل بعض المصادر: {0}",""
 "Page {0}. Items shown: {1}","الصفحة {0}. عدد العناصر المعروضة: {1}",""
 "Open or close the Attention Center","فتح مركز الانتباه أو إغلاقه",""
+"Show as a dialog","العرض في نافذة وسط الشاشة",""
+"Show as a panel","العرض في لوحة صغيرة",""
+"Show as a drawer","العرض في شريط جانبي",""

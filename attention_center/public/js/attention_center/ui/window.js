@@ -1,3 +1,4 @@
+import { displayMode, nextDisplayMode } from "../util/display_mode.js";
 import { adoptStyles, element } from "../util/dom.js";
 import { createFeed } from "../util/feed.js";
 import { trapIndex } from "../util/keys.js";
@@ -13,28 +14,35 @@ const TITLE_ID = "ac-window-title";
 // Inactive tabs (tabindex -1) are left out: Tab reaches the tab list through its selected tab only.
 const FOCUSABLE = ":is(button:not([disabled]), a[href], [tabindex]):not([tabindex='-1'])";
 
-// The window in dialog mode [FR-UI-02, FR-UI-08]: a modal dialog with one tab per source and the "All" tab,
-// the items of the selected tab page by page, and loading, empty and error states. It opens and closes with
-// `store.ui.open`; focus stays inside while it is open and goes back where it was when it closes.
+// The window [FR-UI-02, FR-UI-03, FR-UI-08]: one tab per source and the "All" tab, the items of the selected tab
+// page by page, and loading, empty and error states, in the container of the display_mode preference. It
+// opens and closes with `store.ui.open` and follows `store.prefs.display_mode` while open.
 //
-// `api` has getItems and markSeen; `safe` wraps every handler in the client's guard; `announce(text)` speaks
-// through the polite live region; `refreshSummary()` fetches the summary into the store.
+// The dialog is modal: a backdrop covers the page and focus stays inside. The panel above the launcher and
+// the drawer on the inline-end edge leave the page usable, so focus may leave them. Closing returns focus to
+// the element that had it before opening, unless the user has moved it onto the page meanwhile.
+//
+// `api` has getItems, markSeen and setPreferences; `safe` wraps every handler in the client's guard;
+// `announce(text)` speaks through the polite live region; `refreshSummary()` fetches the summary into the store.
 export function createWindow(root, { store, api, safe, announce, refreshSummary, pageSize }) {
 	adoptStyles(root, WINDOW_STYLES);
-	const overlay = element("div", "overlay");
-	overlay.hidden = true;
+	const frame = element("div", "frame");
+	frame.hidden = true;
 	const dialog = element("section", "window");
-	dialog.dataset.mode = "dialog";
 	dialog.tabIndex = -1;
 	dialog.setAttribute("role", "dialog");
-	dialog.setAttribute("aria-modal", "true");
 	dialog.setAttribute("aria-labelledby", TITLE_ID);
 
 	const header = element("header", "window-header");
 	const title = element("h2", "window-title", __("What needs your attention"));
 	title.id = TITLE_ID;
+	// Its icon and label name the mode it switches to (applyMode).
+	const modeButton = element("button", "icon-button mode-button");
+	modeButton.type = "button";
 	const closeButton = iconButton(ICONS.x, __("Close", null, "Attention Center"));
-	header.append(title, closeButton);
+	const actions = element("div", "window-actions");
+	actions.append(modeButton, closeButton);
+	header.append(title, actions);
 	dialog.append(header);
 
 	const tabs = createTabs(dialog, { panelId: PANEL_ID, safe, onSelect: select });
@@ -55,8 +63,8 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	pager.append(previous, pageLabel, next);
 	panel.append(toolbar, content, pager);
 	dialog.append(panel);
-	overlay.append(dialog);
-	root.append(overlay);
+	frame.append(dialog);
+	root.append(frame);
 
 	let selected = ALL_TAB;
 	let page = 0;
@@ -68,7 +76,10 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	let opener = null;
 	let restoreFocus = true;
 	let pressedOnBackdrop = false;
+	let mode;
+	applyMode();
 
+	modeButton.addEventListener("click", safe(switchMode));
 	closeButton.addEventListener("click", safe(close));
 	previous.addEventListener(
 		"click",
@@ -87,20 +98,22 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		navigate(event.currentTarget.getAttribute("href"));
 	});
 	viewAll.addEventListener("click", onLinkClick);
-	overlay.addEventListener(
+	// Only the dialog's frame has a box of its own, the backdrop; the panel's and the drawer's take no clicks.
+	frame.addEventListener(
 		"pointerdown",
-		safe((event) => (pressedOnBackdrop = event.target === overlay))
+		safe((event) => (pressedOnBackdrop = event.target === frame))
 	);
-	overlay.addEventListener(
+	frame.addEventListener(
 		"click",
 		safe((event) => {
-			if (event.target === overlay && pressedOnBackdrop) close();
+			if (event.target === frame && pressedOnBackdrop) close();
 		})
 	);
 	dialog.addEventListener("keydown", safe(onKeydown));
 
 	store.subscribe(
 		safe((state, previousState) => {
+			if (state.prefs.display_mode !== previousState.prefs.display_mode) applyMode();
 			if (state.ui.open !== previousState.ui.open) {
 				if (state.ui.open) show();
 				else hide();
@@ -118,7 +131,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		loading = false;
 		feeds = new Map();
 		seen = new Set();
-		overlay.hidden = false;
+		frame.hidden = false;
 		renderTabs();
 		tabs.focusSelected();
 		load();
@@ -127,13 +140,35 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 
 	function hide() {
 		generation++;
-		overlay.hidden = true;
-		if (restoreFocus && opener?.isConnected) opener.focus();
+		// Focus the user moved onto the page beside a panel or drawer stays where they put it.
+		const returnFocus = restoreFocus && focusInside();
+		frame.hidden = true;
+		if (returnFocus && opener?.isConnected) opener.focus();
 		opener = null;
 	}
 
 	function close() {
 		store.set({ ui: { ...store.get().ui, open: false } });
+	}
+
+	// Puts the window in the container of the display_mode preference; content, tab and page stay as they are.
+	function applyMode() {
+		mode = displayMode(store.get().prefs.display_mode);
+		frame.dataset.mode = mode.toLowerCase();
+		if (mode === "Dialog") dialog.setAttribute("aria-modal", "true");
+		else dialog.removeAttribute("aria-modal");
+		const next = nextDisplayMode(mode);
+		const label = modeLabel(next);
+		modeButton.innerHTML = ICONS[next.toLowerCase()];
+		modeButton.setAttribute("aria-label", label);
+		modeButton.title = label;
+	}
+
+	function switchMode() {
+		const display_mode = nextDisplayMode(mode);
+		store.set({ prefs: { ...store.get().prefs, display_mode } });
+		// The window follows the click at once; if storing it fails, the next page load shows the stored mode.
+		api.setPreferences({ display_mode }).catch(() => {});
 	}
 
 	// Opens a desk route after closing the window; focus then belongs to the page that opens.
@@ -149,7 +184,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 			// The desk's own Escape handler would close a form dialog or grid row behind the window.
 			event.stopPropagation();
 			close();
-		} else if (event.key === "Tab") {
+		} else if (event.key === "Tab" && mode === "Dialog") {
 			const focusable = [...dialog.querySelectorAll(FOCUSABLE)].filter(
 				(candidate) => !candidate.closest("[hidden]")
 			);
@@ -196,9 +231,8 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		const tab = currentTab();
 		const changed = tab.id !== selected || feeds.get(tab.id)?.keys !== tab.sources.join("\n");
 		selected = tab.id;
-		renderTabs();
 		// The focused tab may be gone with its source.
-		keepFocusInside();
+		keepingFocus(renderTabs);
 		if (changed) {
 			page = 0;
 			load();
@@ -209,7 +243,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	function refresh() {
 		return refreshSummary().then(
 			safe(() => {
-				if (!overlay.hidden && !store.get().summary) {
+				if (!frame.hidden && !store.get().summary) {
 					showError(__("These items could not be loaded."), () => {
 						showLoading();
 						refresh();
@@ -248,18 +282,20 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	}
 
 	function showLoading() {
-		panel.setAttribute("aria-busy", "true");
-		toolbar.hidden = true;
-		content.replaceChildren(state(null, __("Loading…", null, "Attention Center")));
-		keepFocusInside();
+		keepingFocus(() => {
+			panel.setAttribute("aria-busy", "true");
+			toolbar.hidden = true;
+			content.replaceChildren(state(null, __("Loading…", null, "Attention Center")));
+		});
 	}
 
 	function showError(message, retry) {
-		panel.removeAttribute("aria-busy");
-		content.replaceChildren(state(ICONS.alert, message, retry));
-		pager.hidden = true;
+		keepingFocus(() => {
+			panel.removeAttribute("aria-busy");
+			content.replaceChildren(state(ICONS.alert, message, retry));
+			pager.hidden = true;
+		});
 		announce(message);
-		keepFocusInside();
 	}
 
 	function showResult(tab, feed, { items, hasMore, failed }, summary) {
@@ -274,11 +310,12 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 			showError(__("These items could not be loaded."), retry);
 			return;
 		}
-		panel.removeAttribute("aria-busy");
 		markSeen(tab.sources.filter((key) => !failed.includes(key)));
-		if (items.length) showItems(tab, { items, hasMore, failed }, summary, retry);
-		else showEmpty();
-		keepFocusInside();
+		keepingFocus(() => {
+			panel.removeAttribute("aria-busy");
+			if (items.length) showItems(tab, { items, hasMore, failed }, summary, retry);
+			else showEmpty();
+		});
 	}
 
 	function showEmpty() {
@@ -330,9 +367,17 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		Promise.all(unseen.map((key) => api.markSeen(key))).then(safe(refreshSummary), () => {});
 	}
 
-	// A button disabled or removed while it had focus drops focus out of the dialog; it goes back inside.
-	function keepFocusInside() {
-		if (!overlay.hidden && !root.activeElement) dialog.focus();
+	// Whether focus is in the window, or must be: the dialog keeps it inside.
+	function focusInside() {
+		return mode === "Dialog" || dialog.contains(root.activeElement);
+	}
+
+	// Runs a change of the window's content. A control it removes or disables while it has focus would drop
+	// focus onto the page; the window takes it instead.
+	function keepingFocus(change) {
+		const inside = focusInside();
+		change();
+		if (inside && !frame.hidden && !root.activeElement) dialog.focus();
 	}
 
 	function state(icon, message, retry, kind = "state") {
@@ -353,6 +398,12 @@ const FORMAT = {
 	age: (iso) => frappe.datetime.prettyDate(iso) || FORMAT.date(iso),
 	date: (iso) => frappe.datetime.str_to_user(iso.replace("T", " ")),
 };
+
+function modeLabel(mode) {
+	if (mode === "Panel") return __("Show as a panel");
+	if (mode === "Drawer") return __("Show as a drawer");
+	return __("Show as a dialog");
+}
 
 function iconButton(icon, label) {
 	const button = element("button", "icon-button");
