@@ -29,7 +29,9 @@ export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 			dot.hidden = !badge.unseen;
 			main.setAttribute("aria-label", mainLabel(badge));
 			main.setAttribute("aria-expanded", String(open));
-			const toggleLabel = collapsed ? __("Expand the launcher") : __("Collapse the launcher");
+			const toggleLabel = collapsed
+				? __("Expand the launcher")
+				: __("Collapse the launcher");
 			toggle.setAttribute("aria-label", toggleLabel);
 			toggle.title = toggleLabel;
 		},
@@ -38,10 +40,9 @@ export function createLauncher(root, { onOpen, onToggleCollapsed }) {
 
 function mainLabel({ count, unseen }) {
 	if (count && unseen) {
-		return __(
-			"Attention Center: {0} items need your action, and new information is waiting",
-			[count]
-		);
+		return __("Attention Center: {0} items need your action, and new information is waiting", [
+			count,
+		]);
 	}
 	if (count) return __("Attention Center: {0} items need your action", [count]);
 	if (unseen) return __("Attention Center: new information is waiting");

@@ -5,6 +5,7 @@ export function createGuard() {
 	const cleanups = [];
 
 	function report(error) {
+		// eslint-disable-next-line no-console -- client failures go to the console (§7.1)
 		console.error("[attention_center]", error);
 	}
 
@@ -26,7 +27,9 @@ export function createGuard() {
 		try {
 			const result = fn(...args);
 			// An async handler fails later, through its promise.
-			return typeof result?.then === "function" ? Promise.resolve(result).catch(fail) : result;
+			return typeof result?.then === "function"
+				? Promise.resolve(result).catch(fail)
+				: result;
 		} catch (error) {
 			fail(error);
 			return undefined;

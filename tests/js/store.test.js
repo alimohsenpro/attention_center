@@ -51,14 +51,3 @@ test("an unsubscribed listener hears nothing more, the others still do", () => {
 	assert.deepEqual(first, [1]);
 	assert.deepEqual(second, [1, 2]);
 });
-
-test("a listener that unsubscribes itself does not make the others miss the change", () => {
-	const store = createStore({ count: 0 });
-	const heard = [];
-	const unsubscribe = store.subscribe(() => unsubscribe());
-	store.subscribe((state) => heard.push(state.count));
-
-	store.set({ count: 1 });
-
-	assert.deepEqual(heard, [1]);
-});

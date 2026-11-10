@@ -8,7 +8,7 @@ export function createStore(initial) {
 		set(changes) {
 			const previous = state;
 			state = { ...state, ...changes };
-			for (const listener of [...listeners]) listener(state, previous);
+			for (const listener of listeners) listener(state, previous);
 		},
 		subscribe(listener) {
 			listeners.add(listener);

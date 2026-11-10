@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { retitle, watchTitle } from "../../attention_center/public/js/attention_center/util/title.js";
+import {
+	retitle,
+	watchTitle,
+} from "../../attention_center/public/js/attention_center/util/title.js";
 
 const RETITLE_CASES = [
 	["adds the counter", ["ToDo", "", "5"], { title: "(5) ToDo", applied: "(5) " }],
-	["replaces its own counter", ["(5) ToDo", "(5) ", "7"], { title: "(7) ToDo", applied: "(7) " }],
+	[
+		"replaces its own counter",
+		["(5) ToDo", "(5) ", "7"],
+		{ title: "(7) ToDo", applied: "(7) " },
+	],
 	["shows the cap", ["(98) ToDo", "(98) ", "99+"], { title: "(99+) ToDo", applied: "(99+) " }],
 	["removes its counter at zero", ["(7) ToDo", "(7) ", ""], { title: "ToDo", applied: "" }],
 	["leaves a bare title bare at zero", ["ToDo", "", ""], { title: "ToDo", applied: "" }],

@@ -32,21 +32,30 @@ function start() {
 	const title = watchTitle(document, MutationObserver);
 	guard.addCleanup(title.stop);
 	const launcher = createLauncher(shadow, {
-		onOpen: guard.safe(() => store.set({ ui: { ...store.get().ui, open: !store.get().ui.open } })),
+		onOpen: guard.safe(() =>
+			store.set({ ui: { ...store.get().ui, open: !store.get().ui.open } })
+		),
 		onToggleCollapsed: guard.safe(() => toggleCollapsed(store, api)),
 	});
 	const placeholder = createPlaceholder(shadow);
 
 	const render = guard.safe((state) => {
 		const shown = badge(state.summary);
-		launcher.render({ badge: shown, collapsed: state.prefs.launcher_collapsed, open: state.ui.open });
+		launcher.render({
+			badge: shown,
+			collapsed: state.prefs.launcher_collapsed,
+			open: state.ui.open,
+		});
 		title.set(shown.count);
 		placeholder.render(state);
 	});
 	store.subscribe(render);
 	render(store.get());
 
-	setTimeout(guard.safe(() => refreshSummary(store, api)), FIRST_FETCH_DELAY_MS);
+	setTimeout(
+		guard.safe(() => refreshSummary(store, api)),
+		FIRST_FETCH_DELAY_MS
+	);
 }
 
 function createHost() {
@@ -112,7 +121,10 @@ async function refreshSummary(store, api) {
 }
 
 function toggleCollapsed(store, api) {
-	const prefs = { ...store.get().prefs, launcher_collapsed: !store.get().prefs.launcher_collapsed };
+	const prefs = {
+		...store.get().prefs,
+		launcher_collapsed: !store.get().prefs.launcher_collapsed,
+	};
 	store.set({ prefs });
 	// The launcher follows the click at once; if storing it fails, the next page load shows the stored state.
 	api.setPreferences({ launcher_collapsed: prefs.launcher_collapsed }).catch(() => {});

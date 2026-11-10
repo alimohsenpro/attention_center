@@ -21,7 +21,10 @@ test("a throwing boot step is logged, undoes what it added and does not reach th
 
 	assert.equal(result, undefined);
 	assert.deepEqual(body, ["desk"]);
-	assert.deepEqual(errors.calls.map((call) => call.arguments), [["[attention_center]", failure]]);
+	assert.deepEqual(
+		errors.calls.map((call) => call.arguments),
+		[["[attention_center]", failure]]
+	);
 });
 
 test("after a failure every wrapped handler does nothing for the rest of the page load", (t) => {
@@ -54,7 +57,10 @@ test("a rejected async handler is caught and turns the client off", async (t) =>
 	assert.equal(result, undefined);
 	assert.deepEqual(cleaned, ["host removed"]);
 	assert.deepEqual(errors.calls[0].arguments, ["[attention_center]", failure]);
-	assert.equal(guard.run(() => "still running"), undefined);
+	assert.equal(
+		guard.run(() => "still running"),
+		undefined
+	);
 });
 
 test("a failing cleanup is logged and the other cleanups still run", (t) => {

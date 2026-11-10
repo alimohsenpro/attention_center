@@ -4,7 +4,11 @@ import test from "node:test";
 import { badge } from "../../attention_center/public/js/attention_center/util/badge.js";
 
 function summary({ action = 0, attention = 0, info_new = 0, sources = [] }) {
-	return { generated_at: "2026-11-10T09:00:00", sources, totals: { action, attention, info_new } };
+	return {
+		generated_at: "2026-11-10T09:00:00",
+		sources,
+		totals: { action, attention, info_new },
+	};
 }
 
 const source = (kind, count, capped = false) => ({ key: `test_app.${kind}`, kind, count, capped });
@@ -34,7 +38,11 @@ const CASES = [
 	],
 	[
 		"a capped info source does not cap the action count",
-		summary({ action: 4, info_new: 99, sources: [source("action", 4), source("info", 99, true)] }),
+		summary({
+			action: 4,
+			info_new: 99,
+			sources: [source("action", 4), source("info", 99, true)],
+		}),
 		{ count: "4", attention: false, unseen: true },
 	],
 	[
