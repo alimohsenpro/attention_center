@@ -65,12 +65,8 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		if (label) toast.text.append(element("span", "pill", label));
 		toast.text.append(text);
 		clearTimeout(toast.timer);
-		toast.timer = sticky
-			? null
-			: setTimeout(
-					safe(() => dismiss(id)),
-					DISMISS_MS
-			  );
+		const leave = safe(() => dismiss(id));
+		toast.timer = sticky ? null : setTimeout(leave, DISMISS_MS);
 		announce(spokenText(level, text));
 	}
 
