@@ -1,7 +1,11 @@
 // The window's stylesheet, added to the shadow root with the window bundle so that the launcher bundle stays
 // small [NFR-PERF-02]. Tokens come from the host (ui/styles.js); logical properties only (§7.1).
+//
+// The frame's data-mode selects the container [FR-UI-03]: the dialog is centred over a backdrop; the panel
+// floats above the launcher and the drawer along the inline-end edge, with no backdrop, so the frame of those
+// two takes no space and no clicks. All three sit below the desk's modals (z-index 1040/1050).
 export const WINDOW_STYLES = `
-.overlay {
+.frame[data-mode="dialog"] {
 	position: fixed;
 	inset: 0;
 	z-index: 1030;
@@ -13,12 +17,15 @@ export const WINDOW_STYLES = `
 	animation: ac-fade 150ms ease-out;
 }
 
+.frame:not([data-mode="dialog"]) {
+	display: contents;
+}
+
 .window {
 	--ac-link: var(--ac-green-700);
+	container: ac-window / inline-size;
 	display: flex;
 	flex-direction: column;
-	inline-size: min(1040px, 100%);
-	max-block-size: min(720px, 100%);
 	overflow: hidden;
 	border-radius: var(--ac-radius-lg);
 	background: var(--ac-surface);
@@ -27,6 +34,49 @@ export const WINDOW_STYLES = `
 	font-size: 14px;
 	line-height: 1.6;
 	animation: ac-rise 200ms ease-out;
+}
+
+[data-mode="dialog"] > .window {
+	inline-size: min(1040px, 100%);
+	max-block-size: min(720px, 100%);
+}
+
+[data-mode="panel"] > .window,
+[data-mode="drawer"] > .window {
+	position: fixed;
+	z-index: 1030;
+	border: 1px solid var(--ac-border);
+}
+
+/* Above the launcher: its 16 px offset, its 44 px height and a 12 px gap. */
+[data-mode="panel"] > .window {
+	inset-block-end: 72px;
+	inset-inline-end: 16px;
+	inline-size: min(380px, calc(100% - 32px));
+	max-block-size: min(640px, calc(100% - 88px));
+}
+
+[data-mode="drawer"] > .window {
+	--ac-slide-from: 16px;
+	inset-block: 0;
+	inset-inline-end: 0;
+	inline-size: min(420px, 100%);
+	border-block: 0;
+	border-inline-end: 0;
+	border-start-end-radius: 0;
+	border-end-end-radius: 0;
+	animation-name: ac-slide;
+}
+
+/* Transforms have no logical direction: in right-to-left text the drawer comes from the left. */
+:host([dir="rtl"]) [data-mode="drawer"] > .window {
+	--ac-slide-from: -16px;
+}
+
+/* The drawer covers the launcher's corner. The launcher steps aside meanwhile, so that Tab never moves focus
+   onto a control nobody can see. */
+.launcher:has(~ .frame[data-mode="drawer"]:not([hidden])) {
+	visibility: hidden;
 }
 
 /* Green 700 is too dark on the dark surface for text (WCAG AA); green 500 is the same hue, lighter. */
@@ -48,6 +98,12 @@ export const WINDOW_STYLES = `
 	padding-inline: 24px 12px;
 	background: linear-gradient(90deg, var(--ac-green-800), var(--ac-green-900));
 	color: #ffffff;
+}
+
+.window-actions {
+	display: flex;
+	flex: none;
+	gap: 4px;
 }
 
 /* Gradients have no logical direction: the deeper shade stays at the inline end. */
@@ -96,8 +152,14 @@ export const WINDOW_STYLES = `
 	background: rgba(255, 255, 255, 0.12);
 }
 
+:host([dir="rtl"]) .mode-button svg {
+	transform: scaleX(-1);
+}
+
+/* The tab strip keeps its height when the window is short; the items scroll instead. */
 .tabs {
 	display: flex;
+	flex: none;
 	gap: 4px;
 	padding-inline: 16px;
 	border-block-end: 1px solid var(--ac-border);
@@ -442,10 +504,146 @@ tr[data-overdue] time {
 	}
 }
 
+/* Each item as a card [FR-UI-04]: the title with the priority at its inline end, then a line of type, source,
+   sender and status with the age and "Open" at its inline end; "Open" keeps to the inline end when it wraps.
+   The panel (380 px) and the drawer (420 px) are always this narrow; the dialog is when the screen is. The
+   table's header stays for screen readers. */
+@container ac-window (width < 720px) {
+	.window-header {
+		padding-inline: 16px 8px;
+	}
+
+	.tabs {
+		flex-wrap: wrap;
+		gap: 0 4px;
+		padding-inline: 8px;
+	}
+
+	.tab {
+		padding-inline: 8px;
+	}
+
+	.table-wrap {
+		overflow-x: visible;
+	}
+
+	table,
+	td {
+		display: block;
+	}
+
+	thead {
+		position: absolute;
+		inline-size: 1px;
+		block-size: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	tbody {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px;
+	}
+
+	tbody tr {
+		position: relative;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 4px 12px;
+		padding-block: 12px;
+		padding-inline: 16px;
+		overflow: hidden;
+		border: 1px solid var(--ac-border);
+		border-radius: var(--ac-radius);
+	}
+
+	/* Ends the title line, so that the metadata starts a line of its own. */
+	tbody tr::before {
+		content: "";
+		order: 3;
+		flex-basis: 100%;
+	}
+
+	/* Takes the free space between the metadata and the age, so that it does not reach the auto margin of
+	   "Open", which then only acts when "Open" wraps onto a line of its own. */
+	tbody tr::after {
+		content: "";
+		order: 5;
+		flex: 1 0 0;
+	}
+
+	td {
+		padding: 0;
+		border: 0;
+	}
+
+	td:empty {
+		display: none;
+	}
+
+	/* The overdue stripe runs along the card's edge rather than the title's. */
+	.cell-item {
+		position: static;
+		order: 1;
+		flex: 1 1 0;
+		align-self: flex-start;
+		min-inline-size: 0;
+	}
+
+	.cell-priority {
+		order: 2;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		align-self: flex-start;
+		gap: 4px;
+	}
+
+	td.cell-priority > .pill + .pill {
+		margin-block-start: 0;
+	}
+
+	.cell-type,
+	.cell-from,
+	.cell-status {
+		order: 4;
+		color: var(--ac-muted);
+		font-size: 12px;
+	}
+
+	.cell-type {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0 8px;
+	}
+
+	.cell-date {
+		order: 6;
+		color: var(--ac-muted);
+		font-size: 12px;
+	}
+
+	.cell-open {
+		order: 7;
+		margin-inline-start: auto;
+	}
+}
+
 @keyframes ac-rise {
 	from {
 		opacity: 0;
 		transform: translateY(8px);
+	}
+}
+
+@keyframes ac-slide {
+	from {
+		opacity: 0;
+		transform: translateX(var(--ac-slide-from));
 	}
 }
 `;

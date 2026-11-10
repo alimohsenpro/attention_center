@@ -13,6 +13,17 @@ export const ICONS = {
 	alert: svg(
 		'<path d="M8.7 3.5a1.5 1.5 0 0 1 2.6 0l6 10.5a1.5 1.5 0 0 1-1.3 2.25H4a1.5 1.5 0 0 1-1.3-2.25Z"/><path d="M10 8v3M10 13.75v.01"/>'
 	),
+	// The display modes: a screen with the window in its middle, in its bottom corner or along its side. The
+	// panel and the drawer are drawn at the inline end in left-to-right text; the stylesheet mirrors them.
+	dialog: svg(
+		'<rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2"/><rect x="6.5" y="7.25" width="7" height="5.5" rx="1"/>'
+	),
+	panel: svg(
+		'<rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2"/><rect x="10" y="7.5" width="4.25" height="5.75" rx="1"/>'
+	),
+	drawer: svg(
+		'<rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2"/><path d="M11.75 3.75v12.5"/>'
+	),
 	// Points to the inline end in left-to-right text; the stylesheet mirrors it.
 	external: svg(
 		'<path d="M11 4h5v5M16 4l-7 7M14 12v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3"/>'
