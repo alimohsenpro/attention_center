@@ -54,6 +54,16 @@ Reviewer actions: REVIEW, MERGE, NOTHING, HALT.
 - The workspace spend limit in the Console is the overall ceiling. Set it before unpausing.
 - The builder's model is set in `pipeline/agents/builder.md`. To change it, edit the `model` block and run `ant apply pipeline/agents/builder.md`; the next run uses the new version.
 
+## Operator changes after `main` is protected
+
+Branch protection also applies to the operator. To change a protected-path file (the CI
+workflow, `pipeline/`, `scripts/pipeline/`): pause the deployments, untick "Do not allow
+bypassing the above settings" in the branch rule, push, tick it again, unpause.
+
+Changing an agent's model needs no push: edit the `model` block locally, run
+`ant apply --yes pipeline/agents/<role>.md`, and restore the file with `git checkout` when you
+return to the default.
+
 ## What the agents cannot touch
 
 `.github/workflows/`, `pipeline/`, `scripts/pipeline/` and the audio files are protected by
