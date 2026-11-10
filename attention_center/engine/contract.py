@@ -25,6 +25,11 @@ STATUS_COLORS = ("gray", "blue", "green", "orange", "red")
 FIELD_ROLES = ("title", "from", "date", "priority", "due", "status")
 REQUIRED_FIELD_ROLES = ("title", "date")
 TITLE_MAX_LENGTH = 200
+# Counts are capped so that every source costs one query of at most COUNT_CAP + 1 rows (T-07).
+COUNT_CAP = 99
+# A source taking longer is logged as slow; a declarative query taking longer is stopped [NFR-PERF-03].
+TIME_BUDGET_SECONDS = 2
+COUNTERS = ("urgent", "immediate", "overdue", "new_since")
 
 COMMON_KEYS = frozenset(("key", "contract_version", "label", "kind", "type", "icon", "list_route"))
 TYPE_KEYS = {
@@ -52,6 +57,16 @@ class Item(TypedDict):
 	overdue: bool
 	status_label: str | None
 	status_color: str
+
+
+class Counts(TypedDict):
+	count: int
+	capped: bool
+	urgent: int
+	immediate: int
+	overdue: int
+	latest: str | None
+	new_since: int
 
 
 def validate_source_def(definition: object) -> None:
@@ -157,6 +172,33 @@ def normalize_items(source_key: str, items: object) -> list[Item]:
 	return normalized
 
 
+def normalize_count(result: object) -> Counts:
+	"""Normalise what a source's count returned: a whole number, or a dict with `count` and optional counters.
+
+	Every number is capped at COUNT_CAP and `capped` tells whether `count` was. A value of the wrong type
+	breaks the contract: unlike an item's label, a count has no harmless default to fall back to.
+	"""
+	if _is_whole_number(result):
+		result = {"count": result}
+	if not isinstance(result, dict) or not _is_whole_number(result.get("count")):
+		raise ContractError("the count must be a whole number of at least 0, or a dict holding one in count")
+
+	counters = {name: result.get(name) or 0 for name in COUNTERS}
+	invalid = [name for name, value in counters.items() if not _is_whole_number(value)]
+	if invalid:
+		raise ContractError(f"{', '.join(invalid)} must be whole numbers of at least 0")
+	latest = parse_when(result.get("latest"))
+	if result.get("latest") and latest is None:
+		raise ContractError("latest must be a date, a datetime or ISO text")
+
+	return {
+		"count": min(result["count"], COUNT_CAP),
+		"capped": result["count"] > COUNT_CAP,
+		**{name: min(value, COUNT_CAP) for name, value in counters.items()},
+		"latest": _iso(latest),
+	}
+
+
 def normalize_item(raw: object) -> Item | None:
 	"""Return the item in its normalised shape, or None if it lacks a valid id, title or route.
 
@@ -171,14 +213,14 @@ def normalize_item(raw: object) -> Item | None:
 	if not (item_id and title and route):
 		return None
 
-	due = _when(raw.get("due"))
+	due = parse_when(raw.get("due"))
 	return {
 		"id": item_id,
 		"title": title[:TITLE_MAX_LENGTH],
 		"route": route,
 		"type_label": _text(raw.get("type_label")),
 		"from_label": _text(raw.get("from_label")) or _full_name(raw.get("from_user")),
-		"date": _iso(_when(raw.get("date"))),
+		"date": _iso(parse_when(raw.get("date"))),
 		"priority": _choice(raw.get("priority"), PRIORITIES),
 		"due": _iso(due),
 		"overdue": is_overdue(due),
@@ -203,6 +245,23 @@ def is_overdue(due: date | datetime | None) -> bool:
 	if isinstance(due, date):
 		return due < getdate()
 	return False
+
+
+def parse_when(value: object) -> date | datetime | None:
+	"""Read a date or datetime, or an ISO string of one; datetimes become naive in the system time zone."""
+	if isinstance(value, str):
+		try:
+			value = date.fromisoformat(value)
+		except ValueError:
+			try:
+				value = datetime.fromisoformat(value)
+			except ValueError:
+				return None
+	if isinstance(value, datetime):
+		if value.tzinfo:
+			value = value.astimezone(ZoneInfo(get_system_timezone())).replace(tzinfo=None)
+		return value
+	return value if isinstance(value, date) else None
 
 
 def _item_route(raw: dict) -> str | None:
@@ -238,27 +297,14 @@ def _choice(value: object, choices: tuple[str, ...]) -> str:
 	return value if isinstance(value, str) and value in choices else choices[0]
 
 
-def _when(value: object) -> date | datetime | None:
-	"""Read a date or datetime, or an ISO string of one; datetimes become naive in the system time zone."""
-	if isinstance(value, str):
-		try:
-			value = date.fromisoformat(value)
-		except ValueError:
-			try:
-				value = datetime.fromisoformat(value)
-			except ValueError:
-				return None
-	if isinstance(value, datetime):
-		if value.tzinfo:
-			value = value.astimezone(ZoneInfo(get_system_timezone())).replace(tzinfo=None)
-		return value
-	return value if isinstance(value, date) else None
-
-
 def _iso(value: date | datetime | None) -> str | None:
 	if isinstance(value, datetime):
 		return value.isoformat(timespec="seconds")
 	return value.isoformat() if value else None
+
+
+def _is_whole_number(value: object) -> bool:
+	return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def _is_text(value: object) -> bool:
