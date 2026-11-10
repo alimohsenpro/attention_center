@@ -1,10 +1,17 @@
 import frappe
 
+from attention_center.engine.registry import sync_sources
+
 SETTINGS = "Attention Center Settings"
+
+
+def after_install() -> None:
+	sync_sources()
 
 
 def after_migrate() -> None:
 	set_missing_settings_defaults()
+	sync_sources()
 
 
 def set_missing_settings_defaults() -> None:

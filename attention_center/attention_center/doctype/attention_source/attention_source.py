@@ -11,13 +11,14 @@ from frappe.model.document import Document
 from frappe.model.meta import Meta
 from frappe.utils import cint, cstr, escape_html, flt
 
-KEY_PATTERN = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)+")
+from attention_center.engine.contract import KEY_PATTERN, PRIORITIES
+from attention_center.engine.registry import clear_visibility_cache
+
 FILTER_OPERATORS = ("=", "!=", ">", "<", ">=", "<=", "in", "not in", "like", "is")
 LIST_OPERATORS = ("in", "not in")
 IS_VALUES = ("set", "not set")
 PLACEHOLDER_PATTERN = re.compile(r"\{[^{}]*\}")
 PLACEHOLDERS = ("{user}", "{today}")
-PRIORITIES = ("normal", "urgent", "immediate")
 MAPPED_FIELDS = ("title_field", "from_field", "date_field", "priority_field", "due_field", "status_field")
 REQUIRED_MAPPED_FIELDS = ("title_field", "date_field")
 CALLABLE_FIELDS = ("get_count", "get_items", "get_recipients", "watch_doctypes")
@@ -34,6 +35,12 @@ class AttentionSource(Document):
 			self.validate_python_source()
 		else:
 			self.validate_query_source()
+
+	def on_update(self) -> None:
+		clear_visibility_cache()
+
+	def after_delete(self) -> None:
+		clear_visibility_cache()
 
 	def validate_origin(self) -> None:
 		# `from_hooks` is set only by the hook sync in server code; a client cannot send document flags.
