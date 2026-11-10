@@ -32,7 +32,7 @@ Console. Nothing runs on the operator's machine after setup. The Arabic step-by-
 | FIX_CI | CI failed; the log tail is in the CI comment on the pull request |
 | ADDRESS_REVIEW | the reviewer requested changes |
 | WAIT | CI running, review pending, or another run is working |
-| STUCK | five failed attempts on one pull request: the builder opens a `[pipeline-halt]` issue |
+| STUCK | five failed CI runs or reviews on one pull request, or six builder sessions without finishing it: the builder opens a `[pipeline-halt]` issue |
 | HALT | an open `[pipeline-halt]` issue stops both agents until it is closed |
 | DONE | every task is merged |
 

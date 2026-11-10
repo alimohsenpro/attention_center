@@ -21,7 +21,7 @@ jobs:
     name: tests
     # Pinned: the same Ubuntu release as the agents' cloud sandbox, and no surprise image migrations.
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 15
 
     services:
       redis-cache:

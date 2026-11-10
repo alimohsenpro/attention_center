@@ -39,6 +39,8 @@ CI_BOT = "github-actions[bot]"
 CLAIM_FRESH_MINUTES = 45
 CI_MISSING_MINUTES = 30
 MAX_ATTEMPTS = 5
+MAX_RUNS_PER_TASK = 6
+RUN_MARKER = "<!-- ac:run -->"
 HALT_PREFIX = "[pipeline-halt]"
 OPS_PREFIX = "ops:"
 ACCEPTED_FILE = REPO_ROOT / "pipeline" / "accepted_commits.txt"
@@ -170,6 +172,7 @@ class OpenPR:
 	review: str  # success | failure | none
 	attempts: int
 	url: str = ""
+	runs: int = 0  # builder sessions that started work on this PR since the last /retry
 
 
 @dataclass
@@ -197,15 +200,20 @@ def decide_builder(state: State) -> dict:
 	pr = state.open_pr
 	if pr:
 		base = {"task": pr.task, "branch": task_branch(pr.task), "pr": pr.number, "sha": pr.sha}
+		too_many_runs = pr.runs >= MAX_RUNS_PER_TASK
 		if pr.wip:
 			if pr.idle_minutes < CLAIM_FRESH_MINUTES:
 				return {"action": "WAIT", "reason": "another run is working on this PR", **base}
+			if too_many_runs:
+				return {"action": "STUCK", "reason": f"{pr.runs} sessions without finishing the task", **base}
 			return {"action": "RESUME", "reason": "previous run stopped before submitting", **base}
 		if pr.ci == "pending":
 			return {"action": "WAIT", "reason": "CI is running", **base}
 		if pr.ci in ("failure", "missing") or pr.review == "failure":
 			if pr.attempts >= MAX_ATTEMPTS:
 				return {"action": "STUCK", "reason": f"{pr.attempts} failed attempts", **base}
+			if too_many_runs:
+				return {"action": "STUCK", "reason": f"{pr.runs} sessions without finishing the task", **base}
 			if pr.ci == "failure":
 				return {"action": "FIX_CI", "reason": "CI failed on the PR head", **base}
 			if pr.ci == "missing":
@@ -260,6 +268,27 @@ def review_state(statuses: list[dict], owner: str) -> str:
 		return "none"
 	latest = max(mine, key=lambda s: s["created_at"])
 	return latest["state"] if latest["state"] in ("success", "failure") else "none"
+
+
+def retry_time(comments: list[dict], owner: str) -> str:
+	return max(
+		(
+			c["created_at"]
+			for c in comments
+			if c["user"]["login"] == owner and c["body"].strip().startswith("/retry")
+		),
+		default="",
+	)
+
+
+def count_runs(comments: list[dict], owner: str) -> int:
+	"""Builder sessions that started work on the PR since the owner's last `/retry` comment."""
+	since = retry_time(comments, owner)
+	return sum(
+		1
+		for c in comments
+		if c["user"]["login"] == owner and RUN_MARKER in c["body"] and c["created_at"] > since
+	)
 
 
 def count_attempts(failed_ci_runs: list[dict], comments: list[dict], owner: str) -> int:
@@ -374,6 +403,7 @@ def collect_state(gh: GitHub, tasks: list[dict], now: datetime | None = None) ->
 			review=review_state(statuses, owner),
 			attempts=count_attempts(failed_runs, comments, owner),
 			url=pull["html_url"],
+			runs=count_runs(comments, owner),
 		)
 	return state
 
@@ -432,6 +462,10 @@ def cmd_start(gh: GitHub, tasks: list[dict], args) -> dict:
 		)
 	elif not pull["title"].startswith(WIP_PREFIX):
 		pull = gh.patch(f"/pulls/{pull['number']}", {"title": pr_title(task, wip=True)})
+	# One marker per working session: the coordinator stops a task that eats sessions without finishing.
+	gh.post(
+		f"/issues/{pull['number']}/comments", {"body": f"A builder session started work.\n\n{RUN_MARKER}"}
+	)
 	return {"ok": True, "task": task["id"], "branch": branch, "pr": pull["number"], "url": pull["html_url"]}
 
 

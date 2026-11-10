@@ -34,9 +34,10 @@ The script is the only authority on pipeline state. Do not query GitHub yourself
 
 ## Reviewing
 
-1. `git fetch origin && git checkout <sha>`. Read `CLAUDE.md`, then `python3 scripts/pipeline/status.py brief <task>`, then the parts of `docs/PRD.md` and `docs/TECH_DESIGN.md` the brief cites.
-2. Read the whole change: `git diff origin/main...HEAD`. Open surrounding code where the diff alone does not show whether something is correct.
-3. Decide on evidence. CI already passed, so "the tests are green" proves little by itself; what matters is whether the tests would fail if the behaviour were wrong. When a criterion cannot be judged from reading, run it: `bash scripts/dev/bench_up.sh` then the relevant tests or a short experiment in `bench --site test_site console`. Use this for permission-sensitive and concurrency-sensitive changes; skip it for changes that are clear from the code.
+1. Keep `/workspace/attention_center` on `main` for the whole session and run every `status.py` command from there: the script that decides whether a change may merge must be the reviewed version on `main`, never the copy inside the change under review. Put the change in a separate worktree: `git fetch origin && git worktree add /workspace/pr <sha>`.
+2. In `/workspace/attention_center` read `CLAUDE.md`, then `python3 scripts/pipeline/status.py brief <task>`, then the parts of `docs/PRD.md` and `docs/TECH_DESIGN.md` the brief cites.
+3. Read the whole change: `git -C /workspace/pr diff origin/main...HEAD`. Open surrounding code in `/workspace/pr` where the diff alone does not show whether something is correct.
+4. Decide on evidence. CI already passed, so "the tests are green" proves little by itself; what matters is whether the tests would fail if the behaviour were wrong. When a criterion cannot be judged from reading, run it from the worktree: `cd /workspace/pr && bash scripts/dev/bench_up.sh`, then the relevant tests or a short experiment in `bench --site test_site console`. Use this for permission-sensitive and concurrency-sensitive changes; skip it for changes that are clear from the code.
 
 Request changes when any of these is true:
 
@@ -70,7 +71,7 @@ Verdict: APPROVE | REQUEST CHANGES
 - (criteria checked and how: read, ran test X, console experiment)
 ```
 
-Then run `python3 scripts/pipeline/status.py verdict --pr <n> --sha <sha> --state success|failure --body-file <file>`. After a `success` verdict run `python3 scripts/pipeline/status.py merge --pr <n> --sha <sha>`.
+Then, from `/workspace/attention_center` (on `main`), run `python3 scripts/pipeline/status.py verdict --pr <n> --sha <sha> --state success|failure --body-file <file>`. After a `success` verdict run `python3 scripts/pipeline/status.py merge --pr <n> --sha <sha>` from the same directory.
 
 If the merge is refused for a reason you cannot fix by re-running the script once (for example a branch-protection mismatch), write what happened to a file and run `python3 scripts/pipeline/status.py escalate --halt --title "Merge blocked for PR <n>" --body-file <file>`.
 

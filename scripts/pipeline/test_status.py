@@ -85,6 +85,17 @@ class DecideBuilderTest(unittest.TestCase):
 		result = s.decide_builder(s.State(tasks=TASKS, merged={"M0-T1"}, open_pr=open_pr(ci="pending")))
 		self.assertEqual((result["action"], result["task"]), ("WAIT", "M1-T1"))
 
+	def test_run_limit_stops_a_task_that_keeps_consuming_sessions(self):
+		limit = s.MAX_RUNS_PER_TASK
+		stale = s.CLAIM_FRESH_MINUTES + 1
+		self.assertEqual(self.act(open_pr=open_pr(wip=True, idle_minutes=stale, runs=limit)), "STUCK")
+		self.assertEqual(self.act(open_pr=open_pr(wip=True, idle_minutes=stale, runs=limit - 1)), "RESUME")
+		self.assertEqual(self.act(open_pr=open_pr(ci="failure", runs=limit)), "STUCK")
+		self.assertEqual(self.act(open_pr=open_pr(review="failure", runs=limit)), "STUCK")
+		# a session that is still working is never interrupted, and waiting states are unaffected
+		self.assertEqual(self.act(open_pr=open_pr(wip=True, idle_minutes=1, runs=limit)), "WAIT")
+		self.assertEqual(self.act(open_pr=open_pr(ci="success", review="none", runs=limit)), "WAIT")
+
 	def test_attempt_limit_stops_the_fix_loop(self):
 		self.assertEqual(self.act(open_pr=open_pr(ci="failure", attempts=s.MAX_ATTEMPTS)), "STUCK")
 		self.assertEqual(self.act(open_pr=open_pr(review="failure", attempts=s.MAX_ATTEMPTS)), "STUCK")
@@ -160,6 +171,19 @@ class HelpersTest(unittest.TestCase):
 		self.assertEqual(s.count_attempts(runs, comments, OWNER), 1)
 		comments.append(self.comment("/retry", 5, login="stranger"))
 		self.assertEqual(s.count_attempts(runs, comments, OWNER), 1)
+
+	def test_count_runs_counts_owner_markers_since_the_last_retry(self):
+		marker = f"A builder session started work.\n\n{s.RUN_MARKER}"
+		comments = [
+			self.comment(marker, 90),
+			self.comment(marker, 60),
+			self.comment(marker, 50, login="stranger"),
+		]
+		self.assertEqual(s.count_runs(comments, OWNER), 2)
+		comments += [self.comment("/retry", 55)]
+		self.assertEqual(s.count_runs(comments, OWNER), 0)
+		comments += [self.comment(marker, 10)]
+		self.assertEqual(s.count_runs(comments, OWNER), 1)
 
 	def test_parse_repo(self):
 		for url in (

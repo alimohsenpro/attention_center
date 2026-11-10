@@ -90,14 +90,14 @@ case "${1:-}" in
   list)
     while read -r role id; do
       echo "== ${role} ${id}"
-      ant beta:deployments retrieve --deployment-id "$id" --transform '{status,paused_reason,next:schedule.upcoming_runs_at.0,last:schedule.last_run_at}' --format yaml
+      ant beta:deployments retrieve --deployment-id "$id" --transform '{status,paused_reason,next:schedule.upcoming_runs_at.0,last:schedule.last_run_at}' --format yaml </dev/null
     done < "$IDS"
     ;;
   run)
-    ant beta:deployments run --deployment-id "$(dep_id "${2:?builder or reviewer}")"
+    ant beta:deployments run --deployment-id "$(dep_id "${2:?builder or reviewer}")" </dev/null
     ;;
   pause|unpause)
-    while read -r role id; do ant beta:deployments "$1" --deployment-id "$id" >/dev/null && echo "$1 ${role}"; done < "$IDS"
+    while read -r role id; do ant beta:deployments "$1" --deployment-id "$id" </dev/null >/dev/null && echo "$1 ${role}"; done < "$IDS"
     ;;
   *)
     sed -n '2,9p' "$0"; exit 1
