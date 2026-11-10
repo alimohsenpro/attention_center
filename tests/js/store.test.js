@@ -135,6 +135,35 @@ test("a request that fails still lets the refresh asked meanwhile go", async () 
 	assert.deepEqual(store.get().summary, { n: 2 });
 });
 
+test("a summary listener that throws still lets the refresh asked meanwhile go, and later ones too", async () => {
+	const server = fakeServer();
+	const store = createStore({ summary: null }, server.getSummary);
+	let failing = true;
+	store.onSummary(() => {
+		if (failing) {
+			failing = false;
+			throw new Error("listener");
+		}
+	});
+
+	const first = store.refreshSummary();
+	const waiting = store.refreshSummary();
+	server.answer(0);
+	await assert.rejects(first);
+	await settle();
+	assert.equal(server.requests.length, 2);
+
+	const later = store.refreshSummary();
+	server.answer(1);
+	await waiting;
+	await settle();
+	assert.equal(server.requests.length, 3);
+	server.answer(2);
+	await later;
+
+	assert.deepEqual(store.get().summary, { n: 3 });
+});
+
 // The refreshes asked while a request is on its way, and the actor their shared request reports.
 const FOLLOW_UP_ACTORS = [
 	[["me@example.com"], "me@example.com"],

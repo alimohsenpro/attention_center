@@ -52,7 +52,8 @@ export function createStore(initial, getSummary) {
 				queued = null;
 				return refreshSummary(followUp.actor);
 			};
-			followUp.promise = running.then(send);
+			// Also after a rejection (a listener threw), so that `queued` never holds a request that is not coming.
+			followUp.promise = running.then(send, send);
 			queued = followUp;
 		}
 		return queued.promise;
