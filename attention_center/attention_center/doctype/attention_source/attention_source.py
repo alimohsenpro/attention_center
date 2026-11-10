@@ -98,9 +98,13 @@ class AttentionSource(Document):
 
 	def reference_meta(self) -> Meta:
 		if not self.reference_doctype:
-			frappe.throw(_("{0} is required.").format(self.field_label("reference_doctype")))
+			frappe.throw(
+				_("{0} is required for a DocType Query source.").format(self.field_label("reference_doctype"))
+			)
 		if not frappe.db.exists("DocType", self.reference_doctype):
-			frappe.throw(_("DocType {0} does not exist.").format(escape_html(self.reference_doctype)))
+			frappe.throw(
+				_("Reference DocType {0} does not exist.").format(escape_html(self.reference_doctype))
+			)
 
 		meta = frappe.get_meta(self.reference_doctype)
 		if meta.istable or meta.issingle:
@@ -114,7 +118,9 @@ class AttentionSource(Document):
 	def validate_mapped_fields(self, columns: frozenset[str]) -> None:
 		for fieldname in REQUIRED_MAPPED_FIELDS:
 			if not self.get(fieldname):
-				frappe.throw(_("{0} is required.").format(self.field_label(fieldname)))
+				frappe.throw(
+					_("{0} is required for a DocType Query source.").format(self.field_label(fieldname))
+				)
 
 		for fieldname in MAPPED_FIELDS:
 			value = self.get(fieldname)

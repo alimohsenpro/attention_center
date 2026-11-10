@@ -44,7 +44,7 @@
    "description": "Each user can override these in their own settings",
    "fieldname": "user_defaults_section",
    "fieldtype": "Section Break",
-   "label": "User Defaults"
+   "label": "Defaults for Users"
   },
   {
    "default": "Dialog",
@@ -155,7 +155,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-11-10 12:48:57.988412",
+ "modified": "2026-11-10 12:56:53.436247",
  "modified_by": "Administrator",
  "module": "Attention Center",
  "name": "Attention Center Settings",
