@@ -7,6 +7,7 @@ from frappe.utils import add_days, get_system_timezone, getdate, now_datetime
 
 from attention_center.engine.contract import (
 	ContractError,
+	normalize_count,
 	normalize_item,
 	normalize_items,
 	validate_source_def,
@@ -318,3 +319,83 @@ class TestItemList(FrappeTestCase):
 			with self.subTest(result=result):
 				with self.assertRaisesRegex(ContractError, "test_app.unit_inbox"):
 					normalize_items("test_app.unit_inbox", result)
+
+
+class TestCountNormalisation(FrappeTestCase):
+	def test_a_whole_number_or_a_dict_becomes_capped_counts(self):
+		nothing = {"urgent": 0, "immediate": 0, "overdue": 0, "new_since": 0, "latest": None}
+		cases = {
+			"zero": (0, {"count": 0, "capped": False, **nothing}),
+			"99": (99, {"count": 99, "capped": False, **nothing}),
+			"100": (100, {"count": 99, "capped": True, **nothing}),
+			"every counter": (
+				{
+					"count": 7,
+					"urgent": 1,
+					"immediate": 2,
+					"overdue": 3,
+					"new_since": 4,
+					"latest": datetime(2026, 11, 9, 10, 30),
+				},
+				{
+					"count": 7,
+					"capped": False,
+					"urgent": 1,
+					"immediate": 2,
+					"overdue": 3,
+					"new_since": 4,
+					"latest": "2026-11-09T10:30:00",
+				},
+			),
+			"counters above the cap": (
+				{"count": 250, "urgent": 120, "immediate": 100, "overdue": 99, "new_since": 250},
+				{
+					"count": 99,
+					"capped": True,
+					"urgent": 99,
+					"immediate": 99,
+					"overdue": 99,
+					"new_since": 99,
+					"latest": None,
+				},
+			),
+			"empty counters": (
+				{"count": 3, "urgent": None, "latest": None},
+				{"count": 3, "capped": False, **nothing},
+			),
+			"latest as a date": (
+				{"count": 1, "latest": date(2026, 11, 9)},
+				{"count": 1, "capped": False, **nothing, "latest": "2026-11-09"},
+			),
+			"latest as ISO text": (
+				{"count": 1, "latest": "2026-11-09 10:30:00"},
+				{"count": 1, "capped": False, **nothing, "latest": "2026-11-09T10:30:00"},
+			),
+			"other keys": ({"count": 2, "titles": ["Plan"]}, {"count": 2, "capped": False, **nothing}),
+		}
+		for case, (result, expected) in cases.items():
+			with self.subTest(case):
+				self.assertEqual(normalize_count(result), expected)
+
+	def test_a_count_of_the_wrong_shape_breaks_the_contract(self):
+		cases = {
+			"None": (None, "the count must be"),
+			"text": ("3", "the count must be"),
+			"negative": (-1, "the count must be"),
+			"boolean": (True, "the count must be"),
+			"fraction": (2.5, "the count must be"),
+			"list": ([1, 2], "the count must be"),
+			"dict without count": ({"urgent": 1}, "the count must be"),
+			"count as text": ({"count": "3"}, "the count must be"),
+			"negative counter": ({"count": 3, "overdue": -1}, "overdue must be"),
+			"counters as fractions": (
+				{"count": 3, "urgent": 1.5, "new_since": 0.5},
+				"urgent, new_since must be",
+			),
+			"latest not a date": ({"count": 3, "latest": "yesterday"}, "latest must be"),
+			"latest as a number": ({"count": 3, "latest": 20261109}, "latest must be"),
+		}
+		for case, (result, reason) in cases.items():
+			with self.subTest(case):
+				with self.assertRaisesRegex(ContractError, reason):
+					normalize_count(result)
