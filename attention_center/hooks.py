@@ -26,7 +26,7 @@ app_license = "mit"
 
 # include js, css files in header of desk.html
 # app_include_css = "/assets/attention_center/css/attention_center.css"
-# app_include_js = "/assets/attention_center/js/attention_center.js"
+app_include_js = "attention_center.bundle.js"
 
 # include js, css files in header of web template
 # web_include_css = "/assets/attention_center/css/attention_center.css"

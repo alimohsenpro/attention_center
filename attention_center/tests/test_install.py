@@ -1,5 +1,6 @@
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils.jinja_globals import bundled_asset
 
 from attention_center.install import after_migrate
 
@@ -31,6 +32,14 @@ class TestInstall(FrappeTestCase):
 		for doctype in DOCTYPES:
 			with self.subTest(doctype):
 				self.assertEqual(frappe.db.get_value("DocType", doctype, "module"), "Attention Center")
+
+	def test_desk_pages_load_the_built_launcher_bundle(self):
+		self.assertIn("attention_center.bundle.js", frappe.get_hooks("app_include_js"))
+		# The desk resolves the bundle name through assets.json, which the build writes.
+		self.assertRegex(
+			bundled_asset("attention_center.bundle.js"),
+			r"^/assets/attention_center/dist/js/attention_center\.bundle\.\w+\.js$",
+		)
 
 	def test_attention_manager_role_is_installed_with_desk_access(self):
 		role = frappe.db.get_value("Role", "Attention Manager", ["desk_access", "disabled"], as_dict=True)
