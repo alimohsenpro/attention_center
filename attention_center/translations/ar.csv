@@ -147,3 +147,5 @@
 "Urgent","عاجل",""
 "Immediate","فوري",""
 "Reminder","تذكير",""
+"{0} is not an Attention Center source.","{0} ليس مصدرًا في مركز الانتباه.",""
+"Users to nudge must be a list of user ids.","يجب أن يكون المستخدمون المطلوب تنبيههم قائمة بمعرّفات المستخدمين.",""
