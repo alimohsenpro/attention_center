@@ -264,6 +264,16 @@ class TestApprovals(FrappeTestCase):
 		self.assertEqual(self.summary(self.approver)["count"], 1)
 		self.assertEqual(len(frappe.local.message_log), queued_messages)
 
+	def test_an_action_whose_doctype_is_gone_is_skipped_quietly(self):
+		add_expense("Kept expense")
+		orphan = open_action(add_expense("Orphaned expense"))
+		frappe.db.set_value("Workflow Action", orphan, "reference_doctype", "Attention Test Deleted DocType")
+		queued_messages = len(frappe.local.message_log)
+
+		self.assertEqual(self.titles(self.approver), ["Kept expense"])
+		self.assertEqual(self.summary(self.approver)["count"], 1)
+		self.assertEqual(len(frappe.local.message_log), queued_messages)
+
 	def test_the_title_falls_back_to_the_name_when_the_user_may_not_read_the_title_field(self):
 		expense = add_expense("Confidential subject")
 		frappe.make_property_setter(

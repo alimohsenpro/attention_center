@@ -33,7 +33,7 @@ def _pending(user: str) -> Iterator[tuple[frappe._dict, Document]]:
 
 	Workflow Action's permission_query_conditions keep the actions of the user's roles but do not look at the
 	document, so read permission is checked on each one [FR-PERM-03]. Lazy, so that a page stops checking
-	once it is full.
+	once it is full. Deleting a document or a DocType leaves its actions behind; those actions are skipped.
 	"""
 	actions = frappe.get_list(
 		"Workflow Action",
@@ -44,12 +44,18 @@ def _pending(user: str) -> Iterator[tuple[frappe._dict, Document]]:
 		user=user,
 	)
 	seen = set()
+	doctype_exists = {}
 	for action in actions:
-		reference = (action.reference_doctype, action.reference_name)
-		if reference in seen:
+		doctype, name = action.reference_doctype, action.reference_name
+		if (doctype, name) in seen:
 			continue
-		seen.add(reference)
-		document = _readable_document(*reference, user)
+		seen.add((doctype, name))
+		# get_doc on a deleted DocType raises ImportError, not DoesNotExistError, so it is checked first.
+		if doctype not in doctype_exists:
+			doctype_exists[doctype] = bool(frappe.db.exists("DocType", doctype))
+		if not doctype_exists[doctype]:
+			continue
+		document = _readable_document(doctype, name, user)
 		if document:
 			yield action, document
 
@@ -59,8 +65,7 @@ def _readable_document(doctype: str, name: str, user: str) -> Document | None:
 	try:
 		document = frappe.get_doc(doctype, name)
 	except frappe.DoesNotExistError:
-		# The document or its DocType was removed without its actions. Drop the "not found" message
-		# frappe.throw queued, or the background refresh would show it to the user.
+		# Drop the "not found" message frappe.throw queued, or the background refresh would show it to the user.
 		del frappe.local.message_log[queued_messages:]
 		return None
 	return document if frappe.has_permission(doctype, "read", document, user=user) else None

@@ -272,7 +272,8 @@ when the row sets both, else the row itself. Assignments map `doctype`/`name` to
 Approvals details: one item per document, the newest open action's name as `id` and its `creation`
 as `date`. The title is the title field (`meta.get_title_field()`) only when the user may read that
 field's permission level, else the document name. An action whose document or DocType is gone is
-skipped, and the "not found" message Frappe queued is dropped. The hook entry declares no
+skipped: the DocType is checked with `frappe.db.exists` before `get_doc`, which raises `ImportError`
+for a deleted DocType, and the "not found" message Frappe queues for a deleted document is dropped. The hook entry declares no
 `get_recipients`: a python source's recipients are a plain list, which cannot ask for the broadcast
 above the cap, so `engine/recipients.py` computes the role holders (§6).
 
