@@ -297,25 +297,43 @@ above the cap, so `engine/recipients.py` computes the role holders (§6).
 
 ## 5. Server API (`attention_center/api.py`)
 
-All are `@frappe.whitelist()` (POST for mutations), require a logged-in non-Guest desk user, and
-take no user argument [FR-PERM-01].
+All are `@frappe.whitelist()` (POST for mutations), require a logged-in desk user (`user_type`
+System User: Guest and website users get `frappe.PermissionError`), and take no user argument
+[FR-PERM-01]. While the settings disable the app no source is visible: the summary is empty and
+`get_items` / `mark_seen(source)` refuse every key.
 
 | Method | Returns / effect |
 |---|---|
-| `get_summary()` | `{generated_at, sources: [{key, label, kind, icon, count, capped, urgent, immediate, overdue, latest, new_since, state, list_route}], totals: {action, attention, info_new}}` |
-| `get_items(source: str, start: int = 0, page_length: int \| None = None)` | `{items: [...], has_more: bool}`; `frappe.PermissionError` if the source is not visible; `page_length` clamped to 1..50 |
-| `mark_seen(source: str \| None = None)` | sets the watermark(s) to now |
-| `get_preferences()` / `set_preferences(prefs: dict)` | effective preferences / validated update of own preferences |
-| `note_auto_opened()` | stores the hash of the current session id |
-| `test_source(source: str)` | manager-only: count, first 5 items and duration for the caller |
+| `get_summary()` | `{generated_at, sources: [{key, label, kind, icon, count, capped, urgent, immediate, overdue, latest, new_since, state, list_route}], totals: {action, attention, info_new}}`; `kind` is `action` or `info`, `label` translated with the `Attention Source` context |
+| `get_items(source: str, start: int = 0, page_length: int \| None = None)` | `{state, items: [...], has_more: bool}` (`state` as from `run_items`, so a tab can show its error); `frappe.PermissionError` if the source is not visible, with the same message for a missing key; `start` ≥ 0; `page_length` defaults to `page_size` and is clamped to 1..50; `has_more` comes from asking the source for one item more |
+| `mark_seen(source: str \| None = None)` | sets the watermark of the source, or of every visible source, to now |
+| `get_preferences()` / `set_preferences(prefs: dict \| str)` | effective preferences / validated update of own preferences (below) |
+| `note_auto_opened()` | stores the SHA-256 of the current session id; `should_auto_open` is true until it is called in the login session |
+| `test_source(source: str)` | System Manager or Attention Manager (checked with `frappe.get_roles`): `{count: <run_count result>, items: <run_items result, first 5>, duration_ms}` for the caller, for any source, enabled or not; the caller's cached count is dropped first |
 
 `totals.attention` = sum over action sources of `urgent + immediate + overdue` (an item that is
-both urgent and overdue may be counted twice in 0.1; acceptable and documented).
+both urgent and overdue may be counted twice in 0.1; acceptable and documented). `totals.action`
+sums `count` over action sources, `totals.info_new` sums `new_since` over info sources.
+
+Preferences (`engine/preferences.py`, every function acts on the session user's own row) use the
+DocType's own values. Effective preferences: `{display_mode, auto_open_on_login: bool,
+sound_scope, tone, volume: int, dnd_until: ISO text | null (null once passed), launcher_collapsed:
+bool}`. `set_preferences` changes only the names it is given, takes the object or its JSON text
+(`frappe.call` sends objects as JSON text) and rejects any other name (`watermarks`,
+`last_auto_open_sid`, `user`, …). Values: `sound_scope` and `tone` take `""` to inherit, `tone`
+only a `standard` tone of `tones.json`; `volume` `""`/`None` or 0–100; `auto_open_on_login` and
+`display_mode` take `Default` to inherit; `dnd_until` ISO date and time (an offset is converted
+to the system time zone) or empty; `launcher_collapsed` true/false or 0/1. Watermarks are naive
+system-time ISO text per source key. The row is created on the first write; a first write that
+loses the race to create it applies to the row the other request created.
 
 `boot.py::extend_bootinfo(bootinfo)` adds `bootinfo.attention_center = {enabled, version,
-settings: {…client-relevant…}, preferences: {…effective…}, should_auto_open: bool, tones: […]}`.
-It must be cheap (cached settings + one preference read) and never raise: wrap in try/except
-and return `{enabled: False}` on failure [NFR-PERF-02, NFR-REL-01].
+settings: {hide_standard_bell, urgent_tone, immediate_tone, reminder_tone, reminder_interval_hours,
+coalesce_seconds, heartbeat_seconds, page_size}, preferences: {…effective…}, should_auto_open: bool,
+tones: [{id, role, label (translated), url}]}`, or `{enabled: False}` when the app is disabled or
+the user is not a desk user. It must be cheap (cached settings + one preference read, no source
+runs) and never raise: wrap in try/except and return `{enabled: False}` on failure, logging the
+user and the exception type only [NFR-PERF-02, NFR-REL-01].
 
 ## 6. Realtime (`engine/realtime.py`, `engine/recipients.py`) [FR-RT-01..03]
 
@@ -399,7 +417,7 @@ for `Attention Source` (field visibility by type, "Test for my user").
 
 | Layer | Mechanism |
 |---|---|
-| Endpoint | session user only; Guest rejected; manager endpoints `frappe.only_for(("System Manager", "Attention Manager"))` |
+| Endpoint | session user only; Guest and website users rejected; the manager endpoint checks `frappe.get_roles()` for System Manager or Attention Manager (`frappe.only_for` lets everyone through while tests run, so a test could not prove it) |
 | Source visibility | enabled ∧ targeting ∧ DocType read permission (declarative) |
 | Rows | `frappe.get_list` (declarative), per-document `frappe.has_permission` (approvals), the source's own logic (python) |
 | Realtime | content-free payload, user rooms, after commit |
