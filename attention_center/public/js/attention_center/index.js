@@ -1,4 +1,4 @@
-import { createApi } from "./api.js";
+import { createApi, createTransport } from "./api.js";
 import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
 import { createPlaceholder } from "./ui/placeholder.js";
@@ -28,7 +28,7 @@ function start() {
 
 	const shadow = createHost();
 	const store = createStore({ summary: null, prefs: boot.preferences, ui: { open: false } });
-	const api = createApi(call);
+	const api = createApi(createTransport(fetch, () => frappe.csrf_token));
 	const title = watchTitle(document, MutationObserver);
 	guard.addCleanup(title.stop);
 	const launcher = createLauncher(shadow, {
@@ -94,19 +94,6 @@ function adoptStyles(shadow) {
 		style.textContent = STYLES;
 		shadow.append(style);
 	}
-}
-
-// Silent: a request made in the background must not open a message over the user's work.
-function call(method, args) {
-	return new Promise((resolve, reject) => {
-		frappe.call({
-			method,
-			args,
-			silent: true,
-			callback: (response) => resolve(response.message),
-			error: reject,
-		});
-	});
 }
 
 async function refreshSummary(store, api) {

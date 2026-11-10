@@ -1,5 +1,25 @@
 const PREFIX = "attention_center.api.";
 
+// Sends a whitelisted method to the server with `fetch`, not `frappe.call`: `frappe.call` opens a core dialog
+// and plays the error sound on a 403, 404 or 5xx answer even with `silent: true`, and these requests run in
+// the background (§7.1). Any answer other than 2xx rejects. `csrfToken()` is read for every request.
+export function createTransport(fetch, csrfToken) {
+	return async function call(method, args) {
+		const response = await fetch(`/api/method/${method}`, {
+			method: "POST",
+			credentials: "same-origin",
+			headers: {
+				Accept: "application/json",
+				"Content-Type": "application/json",
+				"X-Frappe-CSRF-Token": csrfToken(),
+			},
+			body: JSON.stringify(args),
+		});
+		if (!response.ok) throw new Error(`${method} answered HTTP ${response.status}`);
+		return (await response.json()).message;
+	};
+}
+
 // The server endpoints the client uses (§5). `call(method, args)` returns a promise of the method's result.
 export function createApi(call) {
 	const reads = new Map();

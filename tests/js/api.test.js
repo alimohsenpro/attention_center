@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createApi } from "../../attention_center/public/js/attention_center/api.js";
+import {
+	createApi,
+	createTransport,
+} from "../../attention_center/public/js/attention_center/api.js";
 
 // A server whose answers the test releases one by one.
 function fakeServer() {
@@ -76,3 +79,60 @@ test("a failed write rejects its caller and does not block the next write", asyn
 
 	assert.deepEqual(await next, { launcher_collapsed: false });
 });
+
+// A fetch that records each request and gives every one the same answer.
+function fakeFetch(status, body) {
+	const requests = [];
+	const fetch = async (url, init) => {
+		requests.push({ url, init });
+		return { ok: status >= 200 && status < 300, status, json: async () => body };
+	};
+	return { requests, fetch };
+}
+
+test("a call posts its arguments as JSON with the CSRF token and resolves to the method's result", async () => {
+	const server = fakeFetch(200, { message: { launcher_collapsed: true } });
+	const call = createTransport(server.fetch, () => "token-1");
+
+	const result = await call("attention_center.api.set_preferences", {
+		prefs: { launcher_collapsed: true },
+	});
+
+	assert.deepEqual(result, { launcher_collapsed: true });
+	assert.equal(server.requests.length, 1);
+	const [{ url, init }] = server.requests;
+	assert.equal(url, "/api/method/attention_center.api.set_preferences");
+	assert.equal(init.method, "POST");
+	assert.equal(init.credentials, "same-origin");
+	assert.equal(init.headers["Content-Type"], "application/json");
+	assert.equal(init.headers["X-Frappe-CSRF-Token"], "token-1");
+	assert.deepEqual(JSON.parse(init.body), { prefs: { launcher_collapsed: true } });
+});
+
+test("each call sends the CSRF token the desk holds at that moment", async () => {
+	const server = fakeFetch(200, { message: null });
+	let token = "before";
+	const call = createTransport(server.fetch, () => token);
+
+	await call("attention_center.api.get_summary", {});
+	token = "after";
+	await call("attention_center.api.get_summary", {});
+
+	assert.deepEqual(
+		server.requests.map((request) => request.init.headers["X-Frappe-CSRF-Token"]),
+		["before", "after"]
+	);
+});
+
+// The answers for which frappe.call opens a core dialog or the session-expired flow.
+for (const status of [401, 403, 404, 417, 500, 502, 504, 508]) {
+	test(`an HTTP ${status} answer rejects the call`, async () => {
+		const server = fakeFetch(status, { exc_type: "SomeError", _server_messages: "[]" });
+		const call = createTransport(server.fetch, () => "token");
+
+		await assert.rejects(
+			call("attention_center.api.get_summary", {}),
+			new RegExp(`HTTP ${status}`)
+		);
+	});
+}
