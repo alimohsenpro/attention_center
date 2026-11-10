@@ -33,6 +33,7 @@ TODOS = {
 	},
 	"priority_map": {"High": "urgent"},
 	"recipient_fields": ["allocated_to", "assigned_by"],
+	"route_fields": {"doctype": "reference_type", "name": "reference_name"},
 	"icon": "check",
 	"list_route": "/app/todo?status=Open",
 }
@@ -86,6 +87,8 @@ def make_user_group(name: str, members: list[str]) -> str:
 
 class RegistryTestCase(FrappeTestCase):
 	def setUp(self):
+		# The sources this app declares were synced at install; these tests declare their own.
+		frappe.db.delete(SOURCE, {"is_system": 1})
 		registry.clear_visibility_cache()
 
 	def tearDown(self):
@@ -176,6 +179,9 @@ class TestSyncSources(RegistryTestCase):
 				"priority_field": "priority",
 				"due_field": "date",
 				"status_field": "status",
+				"route_field": None,
+				"route_doctype_field": "reference_type",
+				"route_name_field": "reference_name",
 				"get_count": None,
 			},
 			frappe.get_doc(SOURCE, TODOS["key"]),
@@ -225,6 +231,7 @@ class TestSyncSources(RegistryTestCase):
 						"label": "Open Tasks",
 						"filters": [["status", "=", "Open"]],
 						"list_route": "/app/todo",
+						"route_fields": {"route": "description"},
 					}
 				]
 			}
@@ -235,6 +242,9 @@ class TestSyncSources(RegistryTestCase):
 		self.assertEqual([row.role for row in doc.roles], [role])
 		self.assertEqual([row.user_group for row in doc.user_groups], [group])
 		self.assertEqual((doc.filters_json, doc.list_route), ('[["status", "=", "Open"]]', "/app/todo"))
+		self.assertEqual(
+			(doc.route_field, doc.route_doctype_field, doc.route_name_field), ("description", None, None)
+		)
 
 	def test_the_label_follows_the_hooks_until_an_admin_changes_it(self):
 		sync({SECOND_APP: [TODOS]})

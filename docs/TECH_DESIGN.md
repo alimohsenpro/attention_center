@@ -97,6 +97,7 @@ as a fixture.
 | `filters_json` | Code (JSON) | list of `[field, operator, value]` |
 | `title_field`, `from_field`, `date_field`, `priority_field`, `due_field`, `status_field` | Data | `title_field` and `date_field` required |
 | `priority_map_json` | Code (JSON) | `{ "<field value>": "urgent" \| "immediate" \| "normal" }` |
+| `route_field`, `route_doctype_field`, `route_name_field` | Data | optional, from the hook's `route_fields` (§4.5): a field holding a desk route, and a pair of fields naming the document to open instead of the row |
 | `recipient_fields` | Small Text | comma-separated fieldnames holding a user id |
 | Python section | | read-only, filled from hooks |
 | `get_count`, `get_items`, `get_recipients` | Data | dotted paths |
@@ -113,7 +114,8 @@ placeholders are only `{user}`, `{today}`; `list_route` starts with `/app/`. Sys
 reject edits to definition fields. Permissions: `System Manager`, `Attention Manager`.
 
 Also enforced: `priority_map_json` is an object whose values are `urgent`, `immediate` or `normal`
-and needs `priority_field`; `in`/`not in` take a list, other operators a single value, `is` takes
+and needs `priority_field`; `route_doctype_field` and `route_name_field` are set together;
+`in`/`not in` take a list, other operators a single value, `is` takes
 `set` or `not set`; a `DocType Query` source leaves the Python fields empty; a `Python` source
 names `get_count` and `get_items`. Definition fields are everything except `enabled`,
 `sort_order`, `label`, `roles` and `user_groups` [FR-SRC-01 AC2]. Saving or deleting a source,
@@ -248,6 +250,7 @@ are converted to the system time zone. Date strings are accepted in ISO form onl
 - Items pass: the same filters and order, the mapped fields. The newest `COUNT_CAP + 1` rows (the rows the count covers) are sorted in Python by overdue, then priority; the sort is stable, so newest stays first within a class [FR-API-02]. A page reaching past those rows fetches the rest with `limit_start` in date order only: beyond 100 pending rows the tail is ordered by date. The `name` tie-breaker keeps the window and the tail from overlapping.
 - Every query runs under a statement timeout of `TIME_BUDGET_SECONDS` (2 s): `frappe.db.set_execution_timeout`, then back to `frappe.database.database.get_query_execution_timeout()`, the value Frappe sets when it connects. A stopped query fails the source like any exception [NFR-PERF-03].
 - `frappe.get_list` applies role permissions, user permissions and `permission_query_conditions` [FR-PERM-02], and drops fields above the user's permission level (a mapped field can then be missing). Never use `frappe.get_all`, `frappe.db.sql`, or `ignore_permissions` in a source.
+- An item opens the row's form, unless the route fields say otherwise (§4.5).
 - Titles come from `title_field`; `from_field` values go through `frappe.utils.get_fullname` (`from_user`), which resolves user ids and returns any other value unchanged. `status_label` is the translated status value. The executor returns raw items; the runner normalises them.
 
 ### 4.5 Built-in sources (`sources/`)
@@ -259,7 +262,24 @@ are converted to the system time zone. Date strings are accepted in ISO form onl
 | `attention_center.notifications` | info | Declarative on `Notification Log`: `for_user = {user}`, `read = 0`; title = `subject` (HTML stripped), from = `from_user`, date = `creation`, recipient field `for_user`. Route: the log's `link`, else its reference document |
 
 The route exception for ToDo and Notification Log is expressed as an optional
-`route_fields: {"doctype": "...", "name": "..."}` mapping in the declarative definition.
+`route_fields: {"route": "...", "doctype": "...", "name": "..."}` mapping in the declarative
+definition, stored in `route_field`, `route_doctype_field` and `route_name_field`. An item opens the
+value of `route` when it is a desk route (`/app/…`), else the document named by `doctype` and `name`
+when the row sets both, else the row itself. Assignments map `doctype`/`name` to
+`reference_type`/`reference_name`; notifications map `route` to `link` and `doctype`/`name` to
+`document_type`/`document_name`.
+
+Approvals details: one item per document, the newest open action's name as `id` and its `creation`
+as `date`. The title is the title field (`meta.get_title_field()`) only when the user may read that
+field's permission level, else the document name. An action whose document or DocType is gone is
+skipped: the DocType is checked with `frappe.db.exists` before `get_doc`, which raises `ImportError`
+for a deleted DocType, and the "not found" message Frappe queues for a deleted document is dropped. The hook entry declares no
+`get_recipients`: a python source's recipients are a plain list, which cannot ask for the broadcast
+above the cap, so `engine/recipients.py` computes the role holders (§6).
+
+"View all" routes: approvals `/app/workflow-action?status=Open`, assignments
+`/app/todo?status=Open`, notifications `/app/notification-log?read=0`. The definitions live in
+`sources/builtin.py`; this app's `hooks.py` declares them in `attention_sources` like any consumer app.
 
 ### 4.6 Registry and visibility (`engine/registry.py`)
 

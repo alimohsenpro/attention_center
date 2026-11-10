@@ -24,6 +24,7 @@ PRIORITIES = ("normal", "urgent", "immediate")
 STATUS_COLORS = ("gray", "blue", "green", "orange", "red")
 FIELD_ROLES = ("title", "from", "date", "priority", "due", "status")
 REQUIRED_FIELD_ROLES = ("title", "date")
+ROUTE_FIELD_ROLES = ("route", "doctype", "name")
 TITLE_MAX_LENGTH = 200
 # Counts are capped so that every source costs one query of at most COUNT_CAP + 1 rows (T-07).
 COUNT_CAP = 99
@@ -33,7 +34,9 @@ COUNTERS = ("urgent", "immediate", "overdue", "new_since")
 
 COMMON_KEYS = frozenset(("key", "contract_version", "label", "kind", "type", "icon", "list_route"))
 TYPE_KEYS = {
-	"doctype_query": frozenset(("doctype", "fields", "filters", "priority_map", "recipient_fields")),
+	"doctype_query": frozenset(
+		("doctype", "fields", "filters", "priority_map", "recipient_fields", "route_fields")
+	),
 	"python": frozenset(("get_count", "get_items", "get_recipients", "watch_doctypes")),
 }
 
@@ -136,6 +139,8 @@ def _validate_query_def(definition: dict) -> None:
 			)
 	if not _is_optional(definition, "recipient_fields", _is_text_list):
 		raise ContractError("recipient_fields must be a list of fieldnames")
+	if not _is_optional(definition, "route_fields", _is_route_fields):
+		raise ContractError(f"route_fields must map {', '.join(ROUTE_FIELD_ROLES)} to fieldnames")
 
 
 def _validate_python_def(definition: dict) -> None:
@@ -313,6 +318,14 @@ def _is_text(value: object) -> bool:
 
 def _is_text_list(value: object) -> bool:
 	return isinstance(value, list) and all(_is_text(item) for item in value)
+
+
+def _is_route_fields(value: object) -> bool:
+	return (
+		isinstance(value, dict)
+		and set(value) <= set(ROUTE_FIELD_ROLES)
+		and all(_is_text(fieldname) for fieldname in value.values())
+	)
 
 
 def _is_json(value: object) -> bool:
