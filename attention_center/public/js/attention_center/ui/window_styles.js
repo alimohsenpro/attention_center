@@ -313,6 +313,15 @@ time {
 	white-space: nowrap;
 }
 
+tr[data-overdue] time {
+	color: var(--ac-p-immediate);
+}
+
+/* The immediate red reaches 3:1 on the dark surface; the overdue accent of the scale reaches 4.6:1. */
+:host([data-theme="dark"]) tr[data-overdue] time {
+	color: var(--ac-p-very);
+}
+
 .pill {
 	align-items: center;
 	gap: 4px;
