@@ -51,6 +51,10 @@ export function mergePage(streams, page, size) {
 // The pages of a tab. `fetchItems(key, start, size)` answers like the get_items endpoint: {state, items,
 // has_more}. A source that fails (an error state or a failed request) counts as having no more items and is
 // listed in `failed`, so the other sources of the "All" tab still show; `retry()` asks them again.
+//
+// `page(number)` answers {page, items, hasMore, failed}, where `page` is the page it shows: items handled
+// elsewhere since the pages before were fetched can leave a page past the last one empty, and the last page
+// that has items answers instead, so only the first page is ever empty without a failure.
 export function createFeed(keys, fetchItems, size) {
 	const streams = keys.map((key) => ({
 		key,
@@ -93,15 +97,23 @@ export function createFeed(keys, fetchItems, size) {
 		async page(number) {
 			for (;;) {
 				const result = mergePage(streams, number, size);
-				if (!result.need.length) {
-					const failed = streams
-						.filter((stream) => stream.failed)
-						.map((stream) => stream.key);
-					return { items: result.items, hasMore: result.hasMore, failed };
+				if (result.need.length) {
+					await Promise.all(
+						result.need.map((key) =>
+							fill(streams.find((stream) => stream.key === key))
+						)
+					);
+					continue;
 				}
-				await Promise.all(
-					result.need.map((key) => fill(streams.find((stream) => stream.key === key)))
-				);
+				const failed = streams
+					.filter((stream) => stream.failed)
+					.map((stream) => stream.key);
+				// Every stream is done here, so the pages before answer from what was fetched.
+				if (number > 0 && !result.items.length && !failed.length) {
+					number--;
+					continue;
+				}
+				return { page: number, items: result.items, hasMore: result.hasMore, failed };
 			}
 		},
 		retry() {

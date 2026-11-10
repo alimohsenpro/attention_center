@@ -279,7 +279,12 @@ test("a rejected request fails its source like an error state", async () => {
 		10
 	);
 
-	assert.deepEqual(await feed.page(0), { items: [], hasMore: false, failed: ["app.tasks"] });
+	assert.deepEqual(await feed.page(0), {
+		page: 0,
+		items: [],
+		hasMore: false,
+		failed: ["app.tasks"],
+	});
 });
 
 test("retry asks a failed source again and keeps the items already fetched", async () => {
@@ -288,7 +293,11 @@ test("retry asks a failed source again and keeps the items already fetched", asy
 	const feed = createFeed(["app.tasks"], server.fetchItems, 2);
 	await feed.page(0);
 	failing.add("app.tasks");
-	assert.deepEqual((await feed.page(1)).failed, ["app.tasks"]);
+	const failedPage = await feed.page(1);
+	// The failure is the answer for this page; it does not step back to the page before.
+	assert.equal(failedPage.page, 1);
+	assert.deepEqual(failedPage.items, []);
+	assert.deepEqual(failedPage.failed, ["app.tasks"]);
 
 	failing.clear();
 	feed.retry();
@@ -320,6 +329,56 @@ test("an item pushed onto the next page by a change in the source is shown once"
 	]);
 });
 
+test("a page left empty by items handled elsewhere answers with the last page that has items", async () => {
+	const items = series("t", 23);
+	const server = fakeServer({ "app.tasks": items });
+	const feed = createFeed(["app.tasks"], server.fetchItems, 10);
+	await feed.page(0);
+	await feed.page(1);
+	items.splice(0, 4);
+
+	const after = await feed.page(2);
+
+	assert.equal(after.page, 1);
+	assert.deepEqual(
+		ids(after.items),
+		Array.from({ length: 10 }, (_, i) => `app.tasks:t${i + 11}`)
+	);
+	assert.equal(after.hasMore, false);
+	assert.deepEqual(after.failed, []);
+	// The page before now reports no next page, and answers from what was fetched.
+	assert.equal((await feed.page(1)).hasMore, false);
+	assert.deepEqual(server.requests, [
+		["app.tasks", 0],
+		["app.tasks", 10],
+		["app.tasks", 20],
+	]);
+});
+
+test("in the All tab, a page left empty by a shrinking source steps back to the page before", async () => {
+	const normal = series("n", 10);
+	const server = fakeServer({
+		"app.urgent": series("u", 5, { priority: "urgent" }),
+		"app.normal": normal,
+	});
+	const feed = createFeed(["app.urgent", "app.normal"], server.fetchItems, 5);
+	await feed.page(0);
+	assert.equal((await feed.page(1)).hasMore, true);
+	normal.splice(0, 5);
+
+	const after = await feed.page(2);
+
+	assert.equal(after.page, 1);
+	assert.deepEqual(ids(after.items), [
+		"app.normal:n1",
+		"app.normal:n2",
+		"app.normal:n3",
+		"app.normal:n4",
+		"app.normal:n5",
+	]);
+	assert.equal(after.hasMore, false);
+});
+
 test("pages asked for at the same time share the request for a source", async () => {
 	const server = fakeServer({ "app.tasks": series("t", 3) });
 	const feed = createFeed(["app.tasks"], server.fetchItems, 2);
@@ -343,6 +402,6 @@ test("a source answering more but sending nothing ends instead of being asked fo
 
 	const page = await feed.page(0);
 
-	assert.deepEqual(page, { items: [], hasMore: false, failed: [] });
+	assert.deepEqual(page, { page: 0, items: [], hasMore: false, failed: [] });
 	assert.deepEqual(requests, [0]);
 });

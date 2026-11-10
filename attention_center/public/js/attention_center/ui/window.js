@@ -241,6 +241,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		const result = await feed.page(page);
 		if (run !== generation) return;
 		loading = false;
+		page = result.page;
 		showResult(tab, feed, result, summary);
 	}
 
