@@ -11,7 +11,7 @@ from frappe.model.document import Document
 from frappe.model.meta import Meta
 from frappe.utils import cint, cstr, escape_html, flt
 
-KEY_PATTERN = re.compile(r"^[a-z0-9_]+(\.[a-z0-9_]+)+$")
+KEY_PATTERN = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)+")
 FILTER_OPERATORS = ("=", "!=", ">", "<", ">=", "<=", "in", "not in", "like", "is")
 LIST_OPERATORS = ("in", "not in")
 IS_VALUES = ("set", "not set")
@@ -64,7 +64,7 @@ class AttentionSource(Document):
 		]
 
 	def validate_key(self) -> None:
-		if not KEY_PATTERN.match(self.key or ""):
+		if not KEY_PATTERN.fullmatch(self.key or ""):
 			frappe.throw(
 				_(
 					"The key must look like app.identifier: lowercase letters, digits and underscores, in at least two parts separated by dots."
@@ -73,7 +73,7 @@ class AttentionSource(Document):
 
 	def validate_list_route(self) -> None:
 		if self.list_route and not self.list_route.startswith("/app/"):
-			frappe.throw(_("{0} must start with /app/.").format(_(self.meta.get_label("list_route"))))
+			frappe.throw(_("{0} must start with /app/.").format(self.field_label("list_route")))
 
 	def validate_python_source(self) -> None:
 		if not self.is_system:
@@ -123,15 +123,15 @@ class AttentionSource(Document):
 				)
 
 		for fieldname in MAPPED_FIELDS:
-			value = self.get(fieldname)
-			if value and value not in columns:
-				self.throw_unknown_field(self.field_label(fieldname), value)
+			mapped = self.get(fieldname)
+			if mapped and mapped not in columns:
+				self.throw_unknown_field(self.field_label(fieldname), mapped)
 
 	def validate_recipient_fields(self, columns: frozenset[str]) -> None:
-		for value in cstr(self.recipient_fields).split(","):
-			value = value.strip()
-			if value and value not in columns:
-				self.throw_unknown_field(self.field_label("recipient_fields"), value)
+		for fieldname in cstr(self.recipient_fields).split(","):
+			fieldname = fieldname.strip()
+			if fieldname and fieldname not in columns:
+				self.throw_unknown_field(self.field_label("recipient_fields"), fieldname)
 
 	def validate_filters(self, columns: frozenset[str]) -> None:
 		filters = self.parse_json("filters_json")

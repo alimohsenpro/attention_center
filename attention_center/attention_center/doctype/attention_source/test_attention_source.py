@@ -88,6 +88,7 @@ class TestAttentionSource(FrappeTestCase):
 			"test_app.",
 			".todos",
 			"test app.todos",
+			"test_app.todos\n",
 		):
 			with self.subTest(key=key):
 				self.assertRejected(query_source(key=key), "app.identifier")
