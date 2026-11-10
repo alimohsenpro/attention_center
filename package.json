@@ -1,0 +1,6 @@
+{
+  "name": "attention_center",
+  "private": true,
+  "description": "The desk client is plain ES modules: this lets node --test load them. No dependencies.",
+  "type": "module"
+}
