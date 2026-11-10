@@ -36,7 +36,7 @@ reopen them in code. If one blocks a task, escalate.
 | T-08 | The approvals source checks read permission per document | `Workflow Action` is filtered by role only |
 | T-09 | No UI framework; vanilla ES modules bundled by Frappe's esbuild | Small bundle, no dependency, testable pure logic |
 | T-10 | Tests: `FrappeTestCase` for the backend, `node --test` for pure client logic, a small Playwright smoke suite from M6 | |
-| T-11 | The pipeline merges automatically only when CI is green and the independent reviewer agent approved the exact commit; both are required checks on `main` | Owner asked for uninterrupted delivery with gates |
+| T-11 | The pipeline merges automatically only when CI is green and the independent reviewer agent approved the exact commit. The coordinator enforces both and verifies `main` after every run; GitHub branch protection with the two required checks is recommended on top but not assumed | Owner asked for uninterrupted delivery with gates |
 
 ## Open points for the owner
 

@@ -215,24 +215,102 @@ class FakeGitHub(s.GitHub):
 		raise AssertionError(f"unexpected GET {key} {params}")
 
 
-def pull(number, branch, title, state="open", merged=False, login=OWNER, repo=REPO, updated=2):
+def pull(number, branch, title, state="open", merged=False, login=OWNER, repo=REPO, updated=2, sha="b" * 40):
 	return {
 		"number": number,
 		"title": title,
 		"state": state,
 		"merged_at": ago(60) if merged else None,
+		"merge_commit_sha": f"{number:040d}" if merged else None,
 		"user": {"login": login},
-		"head": {"ref": branch, "sha": "b" * 40, "repo": {"full_name": repo}},
+		"head": {"ref": branch, "sha": sha, "repo": {"full_name": repo}},
 		"updated_at": ago(updated),
 		"html_url": f"https://github.com/{REPO}/pull/{number}",
 	}
 
 
+def main_commit(sha, subject):
+	return {"sha": sha, "commit": {"message": subject + "\n\nbody"}}
+
+
+class IntegrityTest(unittest.TestCase):
+	"""`main` is unprotected, so the coordinator must notice anything that bypassed the gates."""
+
+	MERGE = f"{5:040d}"
+
+	def check(self, statuses, commits, accepted=frozenset(), merged=True):
+		pulls = (
+			[pull(5, "task/M0-T1", "[M0-T1] Sandbox", state="closed", merged=True, sha="d" * 40)]
+			if merged
+			else []
+		)
+		gh = FakeGitHub({f"/commits/{'d' * 40}/statuses": statuses, "/commits": commits})
+		return s.integrity_problem(gh, pulls, OWNER, set(accepted))
+
+	def approval(self, state="success", login=OWNER):
+		return [
+			{"context": s.REVIEW_CONTEXT, "state": state, "created_at": ago(61), "creator": {"login": login}}
+		]
+
+	def test_nothing_to_check_before_the_first_merge(self):
+		self.assertIsNone(self.check([], [main_commit("a" * 40, "anything")], merged=False))
+
+	def test_clean_history_passes(self):
+		self.assertIsNone(self.check(self.approval(), [main_commit(self.MERGE, "[M0-T1] Sandbox (#5)")]))
+
+	def test_merge_without_reviewer_approval_is_reported(self):
+		head = [main_commit(self.MERGE, "[M0-T1] Sandbox (#5)")]
+		for statuses in ([], self.approval("failure"), self.approval(login="stranger")):
+			self.assertIn("#5", self.check(statuses, head))
+
+	def test_direct_commit_after_the_last_merge_is_reported(self):
+		commits = [
+			main_commit("e" * 40, "feat: sneak this in"),
+			main_commit(self.MERGE, "[M0-T1] Sandbox (#5)"),
+		]
+		problem = self.check(self.approval(), commits)
+		self.assertIn("e" * 10, problem)
+		self.assertNotIn("sneak", problem)
+
+	def test_operator_commits_and_accepted_commits_pass(self):
+		ops = [
+			main_commit("e" * 40, "ops: adjust the pipeline"),
+			main_commit(self.MERGE, "[M0-T1] Sandbox (#5)"),
+		]
+		self.assertIsNone(self.check(self.approval(), ops))
+		direct = [main_commit("e" * 40, "feat: hotfix"), main_commit(self.MERGE, "[M0-T1] Sandbox (#5)")]
+		self.assertIsNone(self.check(self.approval(), direct, accepted={"e" * 40}))
+		self.assertIsNone(self.check([], [main_commit(self.MERGE, "x")], accepted={self.MERGE}))
+
+	def test_commits_before_the_last_merge_are_not_examined(self):
+		commits = [main_commit(self.MERGE, "[M0-T1] Sandbox (#5)"), main_commit("a" * 40, "feat: initial")]
+		self.assertIsNone(self.check(self.approval(), commits))
+
+	def test_accepted_file_ignores_comments_and_blanks(self):
+		import tempfile
+
+		with tempfile.TemporaryDirectory() as folder:
+			path = Path(folder) / "accepted.txt"
+			path.write_text("# header\n\n" + "e" * 40 + "  # why\n", encoding="utf-8")
+			self.assertEqual(s.accepted_commits(path), {"e" * 40})
+			self.assertEqual(s.accepted_commits(Path(folder) / "missing.txt"), set())
+
+
 class CollectStateTest(unittest.TestCase):
 	def table(self, pulls, issues=(), runs=(), statuses=(), comments=(), head_age=3):
+		approved = [
+			{
+				"context": s.REVIEW_CONTEXT,
+				"state": "success",
+				"created_at": ago(61),
+				"creator": {"login": OWNER},
+			}
+		]
 		return {
 			"/issues": list(issues),
 			"/pulls": list(pulls),
+			f"/commits/{'d' * 40}/statuses": approved,
+			"/commits": [main_commit(f"{5:040d}", "[M0-T1] Sandbox (#5)")],
 			f"/commits/{'b' * 40}": {"commit": {"committer": {"date": ago(head_age)}}},
 			"/actions/runs": lambda params: {
 				"workflow_runs": [] if params.get("status") == "failure" else list(runs)
@@ -244,7 +322,7 @@ class CollectStateTest(unittest.TestCase):
 	def test_merged_and_open_prs_are_derived_from_trusted_task_branches_only(self):
 		pulls = [
 			pull(9, "task/M1-T1", "[M1-T1] DocTypes"),
-			pull(5, "task/M0-T1", "[M0-T1] Sandbox", state="closed", merged=True),
+			pull(5, "task/M0-T1", "[M0-T1] Sandbox", state="closed", merged=True, sha="d" * 40),
 			pull(6, "task/M1-T2", "[M1-T2] Registry", state="closed", merged=True, login="stranger"),
 			pull(7, "task/M1-T2", "[M1-T2] Registry", state="closed", merged=True, repo="fork/repo"),
 			pull(8, "feature/x", "unrelated", state="closed", merged=True),
@@ -265,6 +343,16 @@ class CollectStateTest(unittest.TestCase):
 			(9, "M1-T1", "success", "none"),
 		)
 		self.assertFalse(state.open_pr.wip)
+
+	def test_unapproved_merge_halts_both_roles(self):
+		table = self.table(
+			[pull(5, "task/M0-T1", "[M0-T1] Sandbox", state="closed", merged=True, sha="d" * 40)]
+		)
+		table[f"/commits/{'d' * 40}/statuses"] = []
+		state = s.collect_state(FakeGitHub(table), TASKS, now=NOW)
+		self.assertIn("#5", state.integrity_problem)
+		self.assertEqual(s.decide_builder(state)["action"], "HALT")
+		self.assertEqual(s.decide_reviewer(state)["action"], "HALT")
 
 	def test_wip_and_idle_time_use_the_most_recent_activity(self):
 		pulls = [pull(9, "task/M1-T1", "WIP: [M1-T1] DocTypes", updated=4)]
@@ -332,6 +420,14 @@ class MergeGuardTest(unittest.TestCase):
 		gh = self.gh("success")
 		with self.assertRaises(s.PipelineError):
 			s.cmd_merge(gh, TASKS, self.args(sha="c" * 40))
+		self.assertEqual(gh.writes, [])
+
+	def test_refuses_while_the_pipeline_is_halted(self):
+		gh = self.gh("success")
+		gh.table["/issues"] = [{"number": 3, "title": "[pipeline-halt] stop"}]
+		with self.assertRaises(s.PipelineError) as ctx:
+			s.cmd_merge(gh, TASKS, self.args())
+		self.assertIn("halted", str(ctx.exception))
 		self.assertEqual(gh.writes, [])
 
 

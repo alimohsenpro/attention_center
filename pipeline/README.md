@@ -14,14 +14,14 @@ Console. Nothing runs on the operator's machine after setup. The Arabic step-by-
 └──────┬───────┘   pull request      └──────┬────────┘
        │                                    │ commit status "agent-review" + squash merge
        ▼                                    ▼
-   GitHub: branch protection on main requires  CI job "tests"  AND  status "agent-review"
+   merge gate:  CI job "tests" green  AND  status "agent-review" = success, on the exact commit
 ```
 
 - Each scheduled run is a fresh session in a fresh sandbox with the repository mounted.
 - Every session first runs `python3 scripts/pipeline/status.py next --role <role>`. That script reads GitHub (pull requests, CI runs, commit statuses, owner comments) and prints one action. Agents never decide by themselves what to work on, whether CI passed or whether a change may be merged.
 - One task = one branch `task/<ID>` = one pull request. Only one pull request is open at a time. Order and dependencies come from `pipeline/tasks.json`; briefs from `docs/DELIVERY_PLAN.md`.
 - A pull request titled `WIP: …` is claimed by a running builder session. If it shows no activity for 45 minutes another run resumes it.
-- The builder cannot approve its own work: its token cannot post commit statuses, and `main` requires the `agent-review` status and the `tests` check on the exact commit.
+- The builder cannot approve its own work: its token cannot post commit statuses, and a merge needs the `agent-review` status and a green `tests` run on the exact commit.
 - The reviewer posts its review as a pull request comment, sets the status, and merges through `status.py merge`, which refuses unless CI is green and the review status is `success` for the head commit.
 
 ## Actions
@@ -54,15 +54,17 @@ Reviewer actions: REVIEW, MERGE, NOTHING, HALT.
 - The workspace spend limit in the Console is the overall ceiling. Set it before unpausing.
 - The builder's model is set in `pipeline/agents/builder.md`. To change it, edit the `model` block and run `ant apply pipeline/agents/builder.md`; the next run uses the new version.
 
-## Operator changes after `main` is protected
+## Who enforces the gate
 
-Branch protection also applies to the operator. To change a protected-path file (the CI
-workflow, `pipeline/`, `scripts/pipeline/`): pause the deployments, untick "Do not allow
-bypassing the above settings" in the branch rule, push, tick it again, unpause.
+- **With GitHub branch protection on `main`** (recommended: require a pull request, and the status checks `tests` and `agent-review`, with no bypass): GitHub itself refuses any other merge or push.
+- **Without it:** `status.py merge` enforces the same two conditions, and every run verifies `main` after the fact. If the last merged task pull request lacks the reviewer's approval, or a commit reached `main` outside the pipeline, the coordinator opens a `[pipeline-halt]` issue that explains how to accept or revert the change, and both agents stop until it is closed. This detects a bypass; it cannot prevent one.
 
-Changing an agent's model needs no push: edit the `model` block locally, run
-`ant apply --yes pipeline/agents/<role>.md`, and restore the file with `git checkout` when you
-return to the default.
+## Operator changes
+
+- Without branch protection: push to `main` with a commit subject that starts with `ops:`. Any other direct commit trips the check above. To accept a commit after the fact, list its full SHA in `pipeline/accepted_commits.txt` in an `ops:` commit.
+- With branch protection: pause the deployments, untick "Do not allow bypassing the above settings" in the branch rule, push, tick it again, unpause.
+- Changing an agent's model needs no push: edit the `model` block locally, run `ant apply --yes pipeline/agents/<role>.md`, and restore the file with `git checkout` when you return to the default.
+- Issues opened by the agents are created with your own account, and GitHub does not email you about your own activity unless "Include your own updates" is enabled under Settings → Notifications → Email.
 
 ## What the agents cannot touch
 

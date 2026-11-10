@@ -1,0 +1,3 @@
+# Commits on main that the owner accepts although they did not come through the pipeline.
+# One full 40-character SHA per line; text after "#" is a comment.
+# Used only when main is not protected by GitHub (see pipeline/README.md, "Who enforces the gate").

@@ -97,7 +97,12 @@ AC_GITHUB_TOKEN="$AC_REVIEWER_REPO_TOKEN" python3 scripts/pipeline/status.py doc
 AC_GITHUB_TOKEN="$AC_REVIEWER_REPO_TOKEN" python3 scripts/pipeline/status.py seed-review-status
 ```
 
-### 1.8 احمِ الفرع main
+### 1.8 احمِ الفرع main (موصى به، وليس شرطاً)
+
+إن تعذّرت هذه الخطوة فتجاوزها. الخط يعمل بدونها: السكربت نفسه يرفض الدمج قبل نجاح CI وموافقة
+المراجع، ويفحص `main` في كل تشغيل، فإن وجد دمجاً بلا موافقة أو commit وصل مباشرةً أوقف الوكيلين
+وفتح Issue عنوانه `[pipeline-halt]` يشرح ما تفعله. الفرق أن الحماية تمنع التجاوز، أما السكربت
+فيكتشفه بعد وقوعه. وبدون الحماية، أي commit ترفعه أنت مباشرةً إلى `main` يجب أن يبدأ عنوانه بـ `ops:`.
 
 **Settings → Branches → Add classic branch protection rule:**
 
@@ -212,6 +217,7 @@ pipeline/deployments.sh run builder
 | إيقاف كل شيء لسؤال أو مراجعة | افتح Issue عنوانه يبدأ بـ `[pipeline-halt]`، وأغلقه للاستئناف |
 | الإجابة عن سؤال طرحه وكيل | علّق على الـIssue الذي عنوانه `[needs-human]` (تُقرأ تعليقاتك أنت فقط) |
 | السماح بمحاولات جديدة لـPR متعثر | علّق `/retry` على الـPR ثم أغلق Issue التوقف |
+| وصول بريد عند فتح الوكلاء Issue | فعّل في GitHub: **Settings → Notifications → Email → Include your own updates** (الوكلاء يكتبون بحسابك) |
 | معرفة الحالة | `AC_GITHUB_TOKEN="$AC_BUILDER_REPO_TOKEN" python3 scripts/pipeline/status.py state` |
 
 بعد خمس محاولات فاشلة على PR واحد يتوقف الخط ويفتح لك Issue بعنوان `[pipeline-halt]` يشرح ما يحتاجه. GitHub يرسل لك بريداً بذلك.

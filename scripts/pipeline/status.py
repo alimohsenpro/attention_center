@@ -40,6 +40,8 @@ CLAIM_FRESH_MINUTES = 45
 CI_MISSING_MINUTES = 30
 MAX_ATTEMPTS = 5
 HALT_PREFIX = "[pipeline-halt]"
+OPS_PREFIX = "ops:"
+ACCEPTED_FILE = REPO_ROOT / "pipeline" / "accepted_commits.txt"
 HUMAN_PREFIX = "[needs-human]"
 REVIEW_MARKER = "<!-- ac:review state={state} sha={sha} -->"
 REVIEW_MARKER_RE = re.compile(r"<!-- ac:review state=(success|failure) sha=([0-9a-f]{7,40}) -->")
@@ -176,6 +178,7 @@ class State:
 	merged: set[str] = field(default_factory=set)
 	open_pr: OpenPR | None = None
 	halt_reason: str | None = None
+	integrity_problem: str | None = None
 
 
 def next_task(state: State) -> dict | None:
@@ -281,6 +284,36 @@ def count_attempts(failed_ci_runs: list[dict], comments: list[dict], owner: str)
 	return len(failed_ci) + len(failed_reviews)
 
 
+def accepted_commits(path: Path = ACCEPTED_FILE) -> set[str]:
+	if not path.exists():
+		return set()
+	lines = (line.split("#", 1)[0].strip() for line in path.read_text(encoding="utf-8").splitlines())
+	return {line for line in lines if line}
+
+
+def integrity_problem(gh: GitHub, merged_pulls: list[dict], owner: str, accepted: set[str]) -> str | None:
+	"""GitHub does not protect `main` here, so verify after the fact that nothing bypassed the gates.
+
+	The last merged task PR must carry the reviewer's approval, and every commit that reached
+	`main` after it must be an operator commit (subject starting with `ops:`) or accepted.
+	"""
+	if not merged_pulls:
+		return None
+	latest = max(merged_pulls, key=lambda pull: pull["merged_at"])
+	statuses = gh.get(f"/commits/{latest['head']['sha']}/statuses", per_page=100) or []
+	if review_state(statuses, owner) != "success" and latest.get("merge_commit_sha") not in accepted:
+		return f"pull request #{latest['number']} was merged without the reviewer's approval"
+	commits = gh.get("/commits", sha=BASE_BRANCH, per_page=30) or []
+	shas = [commit["sha"] for commit in commits]
+	if latest.get("merge_commit_sha") not in shas:
+		return None
+	for commit in commits[: shas.index(latest["merge_commit_sha"])]:
+		subject = commit["commit"]["message"].split("\n", 1)[0]
+		if not subject.startswith(OPS_PREFIX) and commit["sha"] not in accepted:
+			return f"commit {commit['sha'][:10]} reached {BASE_BRANCH} outside the pipeline"
+	return None
+
+
 # ---------------------------------------------------------------- state collection
 
 
@@ -296,6 +329,7 @@ def collect_state(gh: GitHub, tasks: list[dict], now: datetime | None = None) ->
 
 	pulls = gh.paged("/pulls", state="all", sort="created", direction="desc")
 	open_pulls = []
+	merged_pulls = []
 	for pull in pulls:
 		task_id = task_from_branch(pull["head"]["ref"])
 		same_repo = (pull["head"].get("repo") or {}).get("full_name") == gh.repo
@@ -303,8 +337,13 @@ def collect_state(gh: GitHub, tasks: list[dict], now: datetime | None = None) ->
 			continue
 		if pull.get("merged_at"):
 			state.merged.add(task_id)
+			merged_pulls.append(pull)
 		elif pull["state"] == "open":
 			open_pulls.append((task_id, pull))
+
+	if not state.halt_reason:
+		state.integrity_problem = integrity_problem(gh, merged_pulls, owner, accepted_commits())
+		state.halt_reason = state.integrity_problem
 
 	if open_pulls:
 		task_id, pull = min(open_pulls, key=lambda item: item[1]["number"])
@@ -476,6 +515,8 @@ def cmd_merge(gh: GitHub, tasks: list[dict], args) -> dict:
 	pull = require_head(gh, args.pr, args.sha)
 	task_id = task_from_branch(pull["head"]["ref"])
 	state = collect_state(gh, tasks)
+	if state.halt_reason:
+		raise PipelineError(f"Refusing to merge: the pipeline is halted ({state.halt_reason})")
 	pr = state.open_pr
 	if not pr or pr.number != args.pr or pr.wip or pr.ci != "success" or pr.review != "success":
 		raise PipelineError("Refusing to merge: PR must be submitted, CI green and approved at this commit")
@@ -500,6 +541,32 @@ def cmd_escalate(gh: GitHub, tasks: list[dict], args) -> dict:
 	body = Path(args.body_file).read_text(encoding="utf-8")
 	issue = gh.post("/issues", {"title": f"{prefix} {args.title}", "body": body})
 	return {"ok": True, "issue": issue["number"], "url": issue["html_url"], "halts_pipeline": bool(args.halt)}
+
+
+INTEGRITY_BODY = """The pipeline coordinator stopped both agents: {problem}.
+
+`main` is not protected by GitHub in this repository, so the coordinator checks after the fact
+that every change passed CI and the reviewer agent. This one did not.
+
+What to do, as the repository owner:
+
+1. Look at the change and decide whether to keep it or revert it.
+2. To keep a pull request that was merged without approval, review it and then record your
+   approval: `python3 scripts/pipeline/status.py verdict --pr <n> --sha <head sha> --state success --body-file <file>`.
+3. To keep a commit that was pushed straight to `main`, add its full SHA on a line of
+   `pipeline/accepted_commits.txt` in a commit whose subject starts with `ops:`.
+4. Close this issue. The agents resume at their next scheduled run.
+"""
+
+
+def report_integrity_problem(gh: GitHub, problem: str) -> None:
+	"""Leave a visible, pipeline-halting record. Later runs see the open issue and stop there."""
+	try:
+		gh.post(
+			"/issues", {"title": f"{HALT_PREFIX} {problem}", "body": INTEGRITY_BODY.format(problem=problem)}
+		)
+	except PipelineError:
+		pass
 
 
 def cmd_decisions(gh: GitHub, tasks: list[dict], args) -> str:
@@ -605,6 +672,8 @@ def main(argv: list[str] | None = None) -> int:
 		gh = GitHub(repo, token)
 		if args.command == "next":
 			state = collect_state(gh, tasks)
+			if state.integrity_problem:
+				report_integrity_problem(gh, state.integrity_problem)
 			result = decide_builder(state) if args.role == "builder" else decide_reviewer(state)
 		elif args.command == "state":
 			state = collect_state(gh, tasks)
