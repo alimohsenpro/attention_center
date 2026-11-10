@@ -296,6 +296,7 @@ class TestAttentionSource(FrappeTestCase):
 				"list_route": "/app/todo",
 				"icon": "bell",
 				"app": "other_app",
+				"hook_label": "Other ToDos",
 			},
 			PYTHON_SOURCE["key"]: {
 				"get_count": "other_app.count",

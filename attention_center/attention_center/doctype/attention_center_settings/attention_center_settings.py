@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt
 
+from attention_center.engine.registry import clear_visibility_cache
+
 BOUNDS = {
 	"default_volume": (0, 100),
 	"coalesce_seconds": (1, 120),
@@ -31,6 +33,9 @@ class AttentionCenterSettings(Document):
 					self.field_label("reminder_interval_hours"), MIN_REMINDER_INTERVAL_HOURS
 				)
 			)
+
+	def on_update(self) -> None:
+		clear_visibility_cache()
 
 	def field_label(self, fieldname: str) -> str:
 		return _(self.meta.get_label(fieldname), context=self.doctype)

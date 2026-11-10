@@ -15,6 +15,7 @@
   "sort_order",
   "is_system",
   "app",
+  "hook_label",
   "icon",
   "list_route",
   "query_section",
@@ -229,12 +230,19 @@
    "fieldtype": "Table MultiSelect",
    "label": "User Groups",
    "options": "Attention Source User Group"
+  },
+  {
+   "fieldname": "hook_label",
+   "fieldtype": "Data",
+   "hidden": 1,
+   "label": "Hook Label",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-11-10 13:44:51.771960",
+ "modified": "2026-11-10 14:18:15.898377",
  "modified_by": "Administrator",
  "module": "Attention Center",
  "name": "Attention Source",
