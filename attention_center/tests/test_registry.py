@@ -1,5 +1,6 @@
 import time
 from contextlib import contextmanager
+from datetime import date
 from unittest.mock import patch
 
 import frappe
@@ -298,6 +299,25 @@ class TestSyncSources(RegistryTestCase):
 		for key in (TODOS["key"], "test_app.bad_field", "test_app.bad_filter", "test_app.bad_priority"):
 			with self.subTest(key=key):
 				self.assertTrue(any(f"hook source {key} skipped" in line for line in logs.output))
+
+	def test_an_entry_holding_values_json_cannot_store_is_skipped_and_migrate_goes_on(self):
+		entries = [
+			{**TODOS, "filters": [["date", ">", date(2026, 1, 1)]]},
+			{**TODOS, "key": "test_app.grouped", "filters": [["status", "in", {"Open", "Closed"}]]},
+			INBOX,
+		]
+		with hook_sources({SECOND_APP: entries}), self.assertLogs(logger(), "ERROR") as logs:
+			after_migrate()
+
+		self.assertEqual(
+			[row.name for row in source_rows(TODOS["key"], "test_app.grouped", INBOX["key"])], [INBOX["key"]]
+		)
+		self.assertEqual(len(logs.output), 2)
+		for position in (1, 2):
+			with self.subTest(position=position):
+				self.assertIn(
+					f"entry {position} skipped: filters must hold only JSON values", "\n".join(logs.output)
+				)
 
 	def test_a_system_source_whose_new_definition_is_rejected_is_disabled(self):
 		sync({SECOND_APP: [TODOS]})

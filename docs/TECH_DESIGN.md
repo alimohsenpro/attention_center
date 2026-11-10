@@ -207,7 +207,9 @@ keys each type needs, and the types of their values. A key that is not part of t
 (a misspelt `filter`, a python key in a declarative entry) is rejected rather than ignored, because
 an ignored filter would widen the query. The filters, the priority map and the fieldnames are
 checked against the DocType by the `Attention Source` controller when the sync saves the entry,
-so those rules exist once.
+so those rules exist once; `validate_source_def` only checks that filters and the priority map hold
+values JSON can store (text, numbers, booleans, None, lists, dicts). A `date` or a `set` is
+rejected, not converted, so the entry is skipped like any other instead of stopping the sync.
 
 ### 4.3 Item
 

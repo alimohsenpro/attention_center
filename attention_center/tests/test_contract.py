@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import frappe
@@ -118,6 +118,18 @@ class TestSourceDefinition(FrappeTestCase):
 			"no date field": ({**QUERY_DEF, "fields": without(QUERY_DEF["fields"], "date")}, "must map date"),
 			"fieldname not text": ({**QUERY_DEF, "fields": {**QUERY_DEF["fields"], "due": 1}}, "fieldname"),
 			"filters not a list": ({**QUERY_DEF, "filters": {"status": "Open"}}, "filters"),
+			"date value in a filter": (
+				{**QUERY_DEF, "filters": [["date", ">", date(2026, 1, 1)]]},
+				"filters must hold only JSON values",
+			),
+			"set of values in an in filter": (
+				{**QUERY_DEF, "filters": [["status", "in", {"Open", "Closed"}]]},
+				"filters must hold only JSON values",
+			),
+			"priority_map with a tuple key": (
+				{**QUERY_DEF, "priority_map": {("High",): "urgent"}},
+				"priority_map must hold only JSON values",
+			),
 			"priority_map not a dict": ({**QUERY_DEF, "priority_map": [["High", "urgent"]]}, "priority_map"),
 			"recipient_fields as text": (
 				{**QUERY_DEF, "recipient_fields": "allocated_to"},

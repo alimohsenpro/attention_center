@@ -1,6 +1,7 @@
 """Source contract v1: the hook entries apps declare and the items their sources return (§4.1 to §4.3)."""
 
 import html
+import json
 import re
 from collections.abc import Callable
 from datetime import date, datetime
@@ -33,7 +34,10 @@ TYPE_KEYS = {
 
 
 class ContractError(frappe.ValidationError):
-	"""A hook entry or a source's output does not follow the source contract."""
+	"""A hook entry or a source's output does not follow the source contract.
+
+	The message is for the source's developer and goes to the log only, so it is not translated.
+	"""
 
 
 class Item(TypedDict):
@@ -54,7 +58,8 @@ def validate_source_def(definition: object) -> None:
 	"""Raise ContractError naming the first rule a hook entry breaks.
 
 	Filters, the priority map and fieldnames are checked against the DocType by the Attention Source
-	controller when the sync saves the entry, so the rules live in one place.
+	controller when the sync saves the entry, so the rules live in one place. Here filters and the priority
+	map are only checked to hold values the sync can store as JSON.
 	"""
 	if not isinstance(definition, dict):
 		raise ContractError("the entry is not a dict")
@@ -109,6 +114,11 @@ def _validate_query_def(definition: dict) -> None:
 		raise ContractError("filters must be a list of [field, operator, value] conditions")
 	if not _is_optional(definition, "priority_map", lambda value: isinstance(value, dict)):
 		raise ContractError("priority_map must be a dict")
+	for name in ("filters", "priority_map"):
+		if not _is_json(definition.get(name)):
+			raise ContractError(
+				f"{name} must hold only JSON values: text, numbers, booleans, None, lists and dicts"
+			)
 	if not _is_optional(definition, "recipient_fields", _is_text_list):
 		raise ContractError("recipient_fields must be a list of fieldnames")
 
@@ -257,6 +267,14 @@ def _is_text(value: object) -> bool:
 
 def _is_text_list(value: object) -> bool:
 	return isinstance(value, list) and all(_is_text(item) for item in value)
+
+
+def _is_json(value: object) -> bool:
+	try:
+		json.dumps(value)
+	except (TypeError, ValueError):
+		return False
+	return True
 
 
 def _is_dotted_path(value: object) -> bool:
