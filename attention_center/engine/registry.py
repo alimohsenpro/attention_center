@@ -163,8 +163,9 @@ def get_watch_map() -> dict[str, list[frappe._dict]]:
 	"""The enabled sources whose counts a change of a DocType may move, by DocType [FR-RT-01].
 
 	A declarative source watches its DocType, a python source its `watch_doctypes`; approvals also watch the
-	DocTypes of the active workflows. Each entry holds what recipients.get_recipients needs. Cached like the visible sources, and kept for the rest of the request
-	by frappe.cache, so that a document event on an unwatched DocType costs a dict lookup [FR-RT-01 AC1].
+	DocTypes of the active workflows. Each entry holds what recipients.get_recipients needs. Cached like the
+	visible sources, and kept for the rest of the request by frappe.cache, so that a document event on an
+	unwatched DocType costs a dict lookup [FR-RT-01 AC1].
 	"""
 	cached = frappe.cache.get_value(WATCH_CACHE)
 	if cached and cached["expires_at"] > time.time():

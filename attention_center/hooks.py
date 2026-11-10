@@ -156,7 +156,7 @@ doc_events = {
 		"on_change": "attention_center.engine.realtime.on_doc_event",
 		"on_trash": "attention_center.engine.realtime.on_doc_event",
 	},
-	# after_delete: the row is still there in on_trash, where the "*" handler reads the watch map again
+	# after_delete: until then a deleted Workflow's row exists, and the "*" handler running next caches it again
 	"Workflow": {
 		"on_change": "attention_center.engine.registry.on_workflow_change",
 		"after_delete": "attention_center.engine.registry.on_workflow_change",

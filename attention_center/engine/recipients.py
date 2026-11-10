@@ -68,7 +68,7 @@ def _from_callable(source: frappe._dict, doc: Document) -> list[str] | None:
 
 
 def _approvers(doc: Document, method: str | None) -> list[str] | None:
-	"""Holders of the roles a Workflow Action of the change is open to: approvals count it for them (§4.5)."""
+	"""Holders of the roles whose open Workflow Actions the change creates, completes or deletes (§4.5)."""
 	if doc.doctype == "Workflow Action":
 		versions = [version for version in (doc, doc.get_doc_before_save()) if version]
 		return _role_holders({row.role for version in versions for row in version.permitted_roles})
