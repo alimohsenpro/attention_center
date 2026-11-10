@@ -149,15 +149,19 @@ from attention_center.sources.builtin import SOURCES as attention_sources
 
 # Document Events
 # ---------------
-# Hook on document methods and events
+# Nudge the users a change concerns (on_change also follows insert, submit, cancel and db_set)
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"*": {
+		"on_change": "attention_center.engine.realtime.on_doc_event",
+		"on_trash": "attention_center.engine.realtime.on_doc_event",
+	},
+	# after_delete: until then a deleted Workflow's row exists, and the "*" handler running next caches it again
+	"Workflow": {
+		"on_change": "attention_center.engine.registry.on_workflow_change",
+		"after_delete": "attention_center.engine.registry.on_workflow_change",
+	},
+}
 
 # Scheduled Tasks
 # ---------------

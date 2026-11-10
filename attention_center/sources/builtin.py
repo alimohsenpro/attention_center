@@ -8,6 +8,8 @@ APPROVALS = {
 	"type": "python",
 	"get_count": "attention_center.sources.approvals.get_count",
 	"get_items": "attention_center.sources.approvals.get_items",
+	# No get_recipients: engine/recipients.py nudges the holders of the action's roles, or broadcasts.
+	"watch_doctypes": ["Workflow Action"],
 	"list_route": "/app/workflow-action?status=Open",
 }
 
