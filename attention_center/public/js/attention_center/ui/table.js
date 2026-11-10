@@ -67,11 +67,16 @@ function dateCell(iso, format) {
 
 function priorityCell(item, format) {
 	const td = cell("td");
-	if (item.priority === "immediate") td.append(pill(__("Immediate"), "immediate"));
-	else if (item.priority === "urgent") td.append(pill(__("Urgent"), "urgent"));
+	if (item.priority === "immediate")
+		td.append(pill(__("Immediate", null, "Attention Center"), "immediate"));
+	else if (item.priority === "urgent")
+		td.append(pill(__("Urgent", null, "Attention Center"), "urgent"));
 	else td.append(text("span", __("Normal", null, "Attention Center"), "muted"));
 	if (item.overdue) td.append(pill(__("Overdue", null, "Attention Center"), "overdue"));
-	else if (item.due) td.append(text("span", __("Due {0}", [format.date(item.due)]), "muted"));
+	else if (item.due)
+		td.append(
+			text("span", __("Due {0}", [format.date(item.due)], "Attention Center"), "muted")
+		);
 	return td;
 }
 
@@ -99,7 +104,7 @@ function openCell(item, onClick) {
 	if (!isDeskRoute(item.route)) return td;
 	const link = text("a", __("Open", null, "Attention Center"), "open-link");
 	link.href = item.route;
-	link.setAttribute("aria-label", __("Open {0}", [item.title]));
+	link.setAttribute("aria-label", __("Open {0}", [item.title], "Attention Center"));
 	link.addEventListener("click", onClick);
 	td.append(link);
 	return td;

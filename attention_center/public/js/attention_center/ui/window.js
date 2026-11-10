@@ -43,7 +43,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	panel.setAttribute("role", "tabpanel");
 	const toolbar = element("div", "panel-toolbar");
 	const viewAll = element("a", "view-all");
-	viewAll.append(element("span", null, __("View all")));
+	viewAll.append(element("span", null, __("View all", null, "Attention Center")));
 	viewAll.insertAdjacentHTML("beforeend", ICONS.external);
 	toolbar.append(viewAll);
 	const content = element("div", "panel-content");
@@ -315,7 +315,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		pager.hidden = page === 0 && !hasMore;
 		previous.disabled = page === 0;
 		next.disabled = !hasMore;
-		pageLabel.textContent = __("Page {0}", [page + 1]);
+		pageLabel.textContent = __("Page {0}", [page + 1], "Attention Center");
 		announce(__("Page {0}. Items shown: {1}", [page + 1, items.length]));
 		keepFocusInside();
 	}
@@ -339,7 +339,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		if (icon) box.insertAdjacentHTML("beforeend", icon);
 		box.append(element("span", null, message));
 		if (retry) {
-			const button = textButton(__("Try again"), "link-button");
+			const button = textButton(__("Try again", null, "Attention Center"), "link-button");
 			button.addEventListener("click", safe(retry));
 			box.append(button);
 		}
