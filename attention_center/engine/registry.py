@@ -12,6 +12,8 @@ from attention_center.engine.contract import ContractError, validate_source_def
 SOURCE_DOCTYPE = "Attention Source"
 VISIBLE_CACHE = "attention_center:visible"
 VISIBLE_TTL_SECONDS = 300
+WATCH_CACHE = "attention_center:watched"
+WATCH_TTL_SECONDS = 300
 KIND_OPTIONS = {"action": "Action", "info": "Info"}
 SOURCE_TYPE_OPTIONS = {"doctype_query": "DocType Query", "python": "Python"}
 MAPPED_FIELDS = {
@@ -155,14 +157,63 @@ def get_visible_sources(user: str) -> list[frappe._dict]:
 	return sources
 
 
+def get_watch_map() -> dict[str, list[frappe._dict]]:
+	"""The enabled sources whose counts a change of a DocType may move, by DocType [FR-RT-01].
+
+	A declarative source watches its DocType, a python source its `watch_doctypes`. Each entry holds what
+	recipients.get_recipients needs. Cached like the visible sources, and kept for the rest of the request
+	by frappe.cache, so that a document event on an unwatched DocType costs a dict lookup [FR-RT-01 AC1].
+	"""
+	cached = frappe.cache.get_value(WATCH_CACHE)
+	if cached and cached["expires_at"] > time.time():
+		return cached["doctypes"]
+
+	watched = _compute_watch_map()
+	frappe.cache.set_value(WATCH_CACHE, {"expires_at": time.time() + WATCH_TTL_SECONDS, "doctypes": watched})
+	return watched
+
+
 def clear_visibility_cache() -> None:
+	"""Drop what is cached from the source definitions: each user's visible sources and the watch map."""
 	_delete_visibility_cache()
 	# A request reading the sources before this transaction commits would cache the old state again.
 	frappe.db.after_commit.add(_delete_visibility_cache)
 
 
 def _delete_visibility_cache() -> None:
-	frappe.cache.delete_value(VISIBLE_CACHE)
+	frappe.cache.delete_value([VISIBLE_CACHE, WATCH_CACHE])
+
+
+def _compute_watch_map() -> dict[str, list[frappe._dict]]:
+	watched: dict[str, list[frappe._dict]] = {}
+	# get_all: the definitions only route document events to recipients; no user sees them.
+	for source in frappe.get_all(
+		SOURCE_DOCTYPE,
+		filters={"enabled": 1},
+		fields=[
+			"key",
+			"source_type",
+			"reference_doctype",
+			"recipient_fields",
+			"get_recipients",
+			"watch_doctypes",
+		],
+		order_by="sort_order asc, creation asc",
+	):
+		entry = frappe._dict(
+			key=source.key,
+			source_type=source.source_type,
+			recipient_fields=_split(source.recipient_fields),
+			get_recipients=source.get_recipients,
+		)
+		doctypes = (
+			[source.reference_doctype]
+			if source.source_type == "DocType Query"
+			else _split(source.watch_doctypes)
+		)
+		for doctype in doctypes:
+			watched.setdefault(doctype, []).append(entry)
+	return watched
 
 
 def _compute_visible_sources(user: str) -> list[frappe._dict]:
@@ -216,6 +267,10 @@ def _json(value: object) -> str | None:
 
 def _comma_separated(values: list[str] | None) -> str | None:
 	return ", ".join(values) if values else None
+
+
+def _split(text: str | None) -> list[str]:
+	return [part.strip() for part in cstr(text).split(",") if part.strip()]
 
 
 def _logger() -> logging.Logger:
