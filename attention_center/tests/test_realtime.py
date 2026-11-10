@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch
 
 import frappe
+from frappe.model.workflow import apply_workflow
 from frappe.tests.utils import FrappeTestCase
 
 from attention_center.engine import realtime, recipients, registry, runner
@@ -35,10 +36,44 @@ def recipients_not_in_a_list(doc) -> str:
 	return doc.owner
 
 
-def add_todo(allocated_to: str, description: str = "Prepare the agenda"):
+def add_todo(allocated_to: str, description: str = "Prepare the agenda", **values):
 	return frappe.get_doc(
-		{"doctype": "ToDo", "description": description, "allocated_to": allocated_to}
+		{"doctype": "ToDo", "description": description, "allocated_to": allocated_to, **values}
 	).insert(ignore_permissions=True)
+
+
+def add_todo_workflow(approver_role: str) -> str:
+	"""A workflow on the status of ToDo: an Open ToDo waits on `approver_role`, whose Approve closes it."""
+	for state in ("Open", "Closed"):
+		if not frappe.db.exists("Workflow State", state):
+			frappe.get_doc({"doctype": "Workflow State", "workflow_state_name": state}).insert(
+				ignore_permissions=True
+			)
+	if not frappe.db.exists("Workflow Action Master", "Approve"):
+		frappe.get_doc({"doctype": "Workflow Action Master", "workflow_action_name": "Approve"}).insert(
+			ignore_permissions=True
+		)
+	return (
+		frappe.get_doc(
+			{
+				"doctype": "Workflow",
+				"workflow_name": "_Test Attention ToDo Approval",
+				"document_type": "ToDo",
+				"workflow_state_field": "status",
+				"is_active": 1,
+				"send_email_alert": 0,
+				"states": [
+					{"state": "Open", "doc_status": "0", "allow_edit": approver_role},
+					{"state": "Closed", "doc_status": "0", "allow_edit": approver_role},
+				],
+				"transitions": [
+					{"state": "Open", "action": "Approve", "next_state": "Closed", "allowed": approver_role}
+				],
+			}
+		)
+		.insert(ignore_permissions=True)
+		.name
+	)
 
 
 def add_note(title: str = "Agenda", viewers: tuple[str, ...] = ()):
@@ -284,6 +319,58 @@ class TestRealtime(FrappeTestCase):
 
 		self.assertCountEqual(self.commit(), [(approver, self.nudge(APPROVALS)) for approver in approvers])
 
+	def test_a_workflow_transition_nudges_the_approvers_of_the_state_it_leaves(self):
+		approver_role = make_desk_role("_Test Attention Approver")
+		assignee = make_user("approver0@example.com", [approver_role])
+		approver = make_user("approver1@example.com", [approver_role])
+		add_todo_workflow(approver_role)
+		todo = add_todo(assignee, assigned_by=approver)
+		self.assertCountEqual(
+			self.commit(), [(assignee, self.nudge(APPROVALS, ASSIGNMENTS)), (approver, self.nudge(APPROVALS))]
+		)
+		for user in (assignee, approver):
+			self.assertEqual(self.count(APPROVALS, user), 1)
+		self.assertEqual(self.count(APPROVALS, self.user), 0)
+
+		frappe.set_user(approver)
+		apply_workflow(todo, "Approve")
+
+		self.assertEqual(
+			frappe.db.get_value("Workflow Action", {"reference_name": todo.name}, "status"), "Completed"
+		)
+		self.assertCountEqual(
+			self.commit(),
+			[
+				(assignee, {"sources": [APPROVALS, ASSIGNMENTS], "actor": approver}),
+				(approver, {"sources": [APPROVALS], "actor": approver}),
+			],
+		)
+		for user in (assignee, approver):
+			self.assertIsNone(frappe.cache.hget(runner.COUNT_CACHE.format(APPROVALS), user))
+			self.assertEqual(self.count(APPROVALS, user), 0)
+		self.assertIsNotNone(
+			frappe.cache.hget(runner.COUNT_CACHE.format(APPROVALS), self.user),
+			"the count of a user without the role stays cached",
+		)
+
+	def test_a_document_under_a_workflow_nudges_its_approvers_when_deleted_not_when_edited(self):
+		approver_role = make_desk_role("_Test Attention Approver")
+		assignee = make_user("approver0@example.com", [approver_role])
+		approver = make_user("approver1@example.com", [approver_role])
+		add_todo_workflow(approver_role)
+		todo = add_todo(assignee, assigned_by=approver)
+		self.commit()
+
+		todo.description = "Prepare the agenda, revised"
+		todo.save(ignore_permissions=True)
+		self.assertEqual(self.commit(), [(assignee, self.nudge(ASSIGNMENTS))], "the state stays Open")
+
+		frappe.delete_doc("ToDo", todo.name, ignore_permissions=True)
+		self.assertFalse(frappe.db.exists("Workflow Action", {"reference_name": todo.name}))
+		self.assertCountEqual(
+			self.commit(), [(assignee, self.nudge(APPROVALS, ASSIGNMENTS)), (approver, self.nudge(APPROVALS))]
+		)
+
 	def test_approvals_open_to_everyone_or_to_too_many_users_are_broadcast(self):
 		approver_role = make_desk_role("_Test Attention Approver")
 		for n in range(2):
@@ -372,3 +459,22 @@ class TestRealtime(FrappeTestCase):
 		source.save()
 		frappe.set_user(self.actor)
 		self.assertNotIn("Note", registry.get_watch_map())
+
+	def test_approvals_watch_the_doctypes_of_the_active_workflows(self):
+		def watching_todo() -> list[str]:
+			return [source.key for source in registry.get_watch_map()["ToDo"]]
+
+		self.assertEqual(watching_todo(), [ASSIGNMENTS])
+
+		workflow = frappe.get_doc("Workflow", add_todo_workflow(make_desk_role("_Test Attention Approver")))
+		self.assertCountEqual(watching_todo(), [APPROVALS, ASSIGNMENTS])
+
+		workflow.is_active = 0
+		workflow.save(ignore_permissions=True)
+		self.assertEqual(watching_todo(), [ASSIGNMENTS])
+
+		workflow.is_active = 1
+		workflow.save(ignore_permissions=True)
+		self.assertCountEqual(watching_todo(), [APPROVALS, ASSIGNMENTS])
+		frappe.delete_doc("Workflow", workflow.name, ignore_permissions=True)
+		self.assertEqual(watching_todo(), [ASSIGNMENTS])
