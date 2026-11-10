@@ -11,7 +11,6 @@ export function createGuard() {
 
 	function fail(error) {
 		report(error);
-		if (failed) return;
 		failed = true;
 		for (const cleanup of cleanups.splice(0)) {
 			try {

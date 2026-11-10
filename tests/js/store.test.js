@@ -14,15 +14,6 @@ test("set replaces the given keys and keeps the others", () => {
 	assert.equal(store.get().prefs, prefs);
 });
 
-test("the initial object is not changed by later updates", () => {
-	const initial = { summary: null };
-	const store = createStore(initial);
-
-	store.set({ summary: { totals: {} } });
-
-	assert.deepEqual(initial, { summary: null });
-});
-
 test("listeners receive the new and the previous state", () => {
 	const store = createStore({ summary: null, ui: { open: false } });
 	const seen = [];

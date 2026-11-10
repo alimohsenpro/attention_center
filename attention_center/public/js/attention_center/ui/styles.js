@@ -58,7 +58,6 @@ button {
 	outline-offset: 2px;
 }
 
-.visually-hidden,
 .launcher[data-collapsed] .launcher-label {
 	position: absolute;
 	inline-size: 1px;

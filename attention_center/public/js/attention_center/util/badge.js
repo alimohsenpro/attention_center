@@ -1,4 +1,4 @@
-export const COUNT_CAP = 99;
+const COUNT_CAP = 99;
 
 // What the launcher and the tab title show for a summary: the action count as text ("" when there is none),
 // whether attention items exist, and whether an info source has something new [FR-UI-01, FR-UI-06].

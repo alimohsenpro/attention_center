@@ -40,13 +40,13 @@ function start() {
 	const placeholder = createPlaceholder(shadow);
 
 	const render = guard.safe((state) => {
-		const shown = badge(state.summary);
+		const summaryBadge = badge(state.summary);
 		launcher.render({
-			badge: shown,
+			badge: summaryBadge,
 			collapsed: state.prefs.launcher_collapsed,
 			open: state.ui.open,
 		});
-		title.set(shown.count);
+		title.set(summaryBadge.count);
 		placeholder.render(state);
 	});
 	store.subscribe(render);

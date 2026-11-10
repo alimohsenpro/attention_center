@@ -1,6 +1,6 @@
 // The client's state, {summary, prefs, ui}. Listeners receive the new and the previous state after each change.
 export function createStore(initial) {
-	let state = { ...initial };
+	let state = initial;
 	const listeners = new Set();
 
 	return {
