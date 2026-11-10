@@ -197,6 +197,8 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		const changed = tab.id !== selected || feeds.get(tab.id)?.keys !== tab.sources.join("\n");
 		selected = tab.id;
 		renderTabs();
+		// The focused tab may be gone with its source.
+		keepFocusInside();
 		if (changed) {
 			page = 0;
 			load();
