@@ -1,0 +1,165 @@
+{
+  "version": 1,
+  "branch_prefix": "task/",
+  "tasks": [
+    {
+      "id": "M0-T1",
+      "title": "Sandbox bench and green CI",
+      "depends_on": []
+    },
+    {
+      "id": "M1-T1",
+      "title": "DocTypes, role and install hooks",
+      "depends_on": [
+        "M0-T1"
+      ]
+    },
+    {
+      "id": "M1-T2",
+      "title": "Source contract and registry",
+      "depends_on": [
+        "M1-T1"
+      ]
+    },
+    {
+      "id": "M1-T3",
+      "title": "Declarative executor and runner",
+      "depends_on": [
+        "M1-T2"
+      ]
+    },
+    {
+      "id": "M1-T4",
+      "title": "Built-in sources",
+      "depends_on": [
+        "M1-T3"
+      ]
+    },
+    {
+      "id": "M1-T5",
+      "title": "Server API, preferences and bootinfo",
+      "depends_on": [
+        "M1-T4"
+      ]
+    },
+    {
+      "id": "M2-T1",
+      "title": "Realtime nudges",
+      "depends_on": [
+        "M1-T5"
+      ]
+    },
+    {
+      "id": "M3-T1",
+      "title": "Client skeleton and launcher",
+      "depends_on": [
+        "M2-T1"
+      ]
+    },
+    {
+      "id": "M3-T2",
+      "title": "Window in dialog mode",
+      "depends_on": [
+        "M3-T1"
+      ]
+    },
+    {
+      "id": "M3-T3",
+      "title": "Panel and drawer modes, responsive rows",
+      "depends_on": [
+        "M3-T2"
+      ]
+    },
+    {
+      "id": "M3-T4",
+      "title": "Refresh loop",
+      "depends_on": [
+        "M3-T3"
+      ]
+    },
+    {
+      "id": "M4-T1",
+      "title": "Alert policy and toasts",
+      "depends_on": [
+        "M3-T4"
+      ]
+    },
+    {
+      "id": "M4-T2",
+      "title": "Sound engine",
+      "depends_on": [
+        "M4-T1"
+      ]
+    },
+    {
+      "id": "M4-T3",
+      "title": "Login auto-open and periodic reminder",
+      "depends_on": [
+        "M4-T2"
+      ]
+    },
+    {
+      "id": "M5-T1",
+      "title": "User settings view",
+      "depends_on": [
+        "M4-T3"
+      ]
+    },
+    {
+      "id": "M5-T2",
+      "title": "Admin forms and bell option",
+      "depends_on": [
+        "M5-T1"
+      ]
+    },
+    {
+      "id": "M6-T1",
+      "title": "Arabic, RTL, dark mode and UI smoke tests",
+      "depends_on": [
+        "M5-T2"
+      ]
+    },
+    {
+      "id": "M6-T2",
+      "title": "Performance, resilience and security pass",
+      "depends_on": [
+        "M6-T1"
+      ]
+    },
+    {
+      "id": "M6-T3",
+      "title": "Provider guide, example and release 0.1.0",
+      "depends_on": [
+        "M6-T2"
+      ]
+    },
+    {
+      "id": "M7-T1",
+      "title": "Announcements backend",
+      "depends_on": [
+        "M6-T3"
+      ]
+    },
+    {
+      "id": "M7-T2",
+      "title": "Announcements UI",
+      "depends_on": [
+        "M7-T1"
+      ]
+    },
+    {
+      "id": "M7-T3",
+      "title": "Remind me later and extra sources",
+      "depends_on": [
+        "M7-T2"
+      ]
+    },
+    {
+      "id": "M7-T4",
+      "title": "Source health and release 0.2.0",
+      "depends_on": [
+        "M7-T3"
+      ]
+    }
+  ]
+}

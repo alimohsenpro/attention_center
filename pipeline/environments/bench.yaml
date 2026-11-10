@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://platform.claude.com/schemas/ant/beta/environment.json
+name: ac-bench
+description: Cloud sandbox that can run a Frappe 15 bench (MariaDB, Redis) for Attention Center.
+config:
+  type: cloud
+  packages:
+    apt:
+      - mariadb-server
+      - mariadb-client
+      - libmariadb-dev
+      - pkg-config
+      - cron
+    pip:
+      - frappe-bench
+  networking:
+    type: limited
+    allow_package_managers: true

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "chime",
+    "file": "chime.wav",
+    "role": "standard",
+    "label": "Chime"
+  },
+  {
+    "id": "knock",
+    "file": "knock.wav",
+    "role": "standard",
+    "label": "Knock"
+  },
+  {
+    "id": "pulse",
+    "file": "pulse.wav",
+    "role": "standard",
+    "label": "Pulse"
+  },
+  {
+    "id": "telegraph",
+    "file": "telegraph.wav",
+    "role": "standard",
+    "label": "Telegraph"
+  },
+  {
+    "id": "drop",
+    "file": "drop.wav",
+    "role": "standard",
+    "label": "Drop"
+  },
+  {
+    "id": "urgent",
+    "file": "urgent.wav",
+    "role": "urgent",
+    "label": "Urgent"
+  },
+  {
+    "id": "immediate",
+    "file": "immediate.wav",
+    "role": "immediate",
+    "label": "Immediate"
+  },
+  {
+    "id": "reminder",
+    "file": "reminder.wav",
+    "role": "reminder",
+    "label": "Reminder"
+  }
+]

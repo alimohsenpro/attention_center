@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Attention Center tones</title>
+<style>
+:root { --bg:#f5f8f7; --card:#ffffff; --ink:#17302c; --muted:#63756f; --line:#e3ebe8; --accent:#067564; }
+@media (prefers-color-scheme: dark) { :root { --bg:#18201f; --card:#1f2a28; --ink:#e8f0ee; --muted:#9db0aa; --line:#2c3a37; --accent:#0e9f86; } }
+body { margin:0; padding:24px 16px; background:var(--bg); color:var(--ink); font-family:system-ui,"Segoe UI",Tahoma,sans-serif; }
+main { max-width:640px; margin:0 auto; }
+h1 { font-size:20px; margin:0 0 4px; }
+p { color:var(--muted); margin:0 0 16px; font-size:14px; line-height:1.7; }
+.row { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px; }
+.name { min-width:180px; }
+.name b { font-size:16px; color:var(--accent); }
+.name span { color:var(--muted); font-size:13px; margin-inline-start:6px; }
+.name small { display:block; color:var(--muted); font-size:12px; margin-top:2px; }
+audio { height:36px; max-width:100%; }
+</style>
+</head>
+<body>
+<main>
+<h1>نغمات مركز التنبيهات</h1>
+<p>استمع لكل نغمة. الخمس الأولى يختار المستخدم إحداها، والثلاث الأخيرة موحّدة للجميع.</p>
+<div class="row"><div class="name"><b>رنّة</b> <span>Chime</span><small>نغمة عادية يختارها المستخدم</small></div><audio controls preload="auto" src="chime.wav"></audio></div>
+<div class="row"><div class="name"><b>طرقة</b> <span>Knock</span><small>نغمة عادية يختارها المستخدم</small></div><audio controls preload="auto" src="knock.wav"></audio></div>
+<div class="row"><div class="name"><b>نبضة</b> <span>Pulse</span><small>نغمة عادية يختارها المستخدم</small></div><audio controls preload="auto" src="pulse.wav"></audio></div>
+<div class="row"><div class="name"><b>برقية</b> <span>Telegraph</span><small>نغمة عادية يختارها المستخدم</small></div><audio controls preload="auto" src="telegraph.wav"></audio></div>
+<div class="row"><div class="name"><b>قطرة</b> <span>Drop</span><small>نغمة عادية يختارها المستخدم</small></div><audio controls preload="auto" src="drop.wav"></audio></div>
+<div class="row"><div class="name"><b>عاجل</b> <span>Urgent</span><small>نغمة العاجل (موحّدة)</small></div><audio controls preload="auto" src="urgent.wav"></audio></div>
+<div class="row"><div class="name"><b>فوري</b> <span>Immediate</span><small>نغمة الفوري (موحّدة)</small></div><audio controls preload="auto" src="immediate.wav"></audio></div>
+<div class="row"><div class="name"><b>تذكير</b> <span>Reminder</span><small>نغمة التذكير الدوري (موحّدة)</small></div><audio controls preload="auto" src="reminder.wav"></audio></div>
+</main>
+</body>
+</html>

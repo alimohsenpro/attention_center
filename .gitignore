@@ -1,0 +1,14 @@
+.DS_Store
+*.pyc
+*.egg-info
+*.swp
+tags
+node_modules
+__pycache__
+attention_center/public/dist/
+# Operator-local pipeline state: ids of the operator's own Console resources
+claude-lock.json
+.pipeline-deployments
+.env
+.env.*
+*.log

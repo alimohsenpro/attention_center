@@ -1,0 +1,90 @@
+# The build agents cannot change this file (their tokens lack the Workflows permission).
+# What CI does is defined by scripts/ci/install.sh and scripts/ci/run_tests.sh.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      redis-cache:
+        image: redis:alpine
+        ports:
+          - 13000:6379
+      redis-queue:
+        image: redis:alpine
+        ports:
+          - 11000:6379
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: --health-cmd="mariadb-admin ping" --health-interval=5s --health-timeout=2s --health-retries=3
+
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          check-latest: true
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install bench, site and app
+        run: |
+          set -o pipefail
+          bash scripts/ci/install.sh 2>&1 | tee "$RUNNER_TEMP/ci.log"
+        env:
+          CI: "Yes"
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          bash scripts/ci/run_tests.sh 2>&1 | tee -a "$RUNNER_TEMP/ci.log"
+
+      - name: Report the failure on the pull request
+        if: failure() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const path = `${process.env.RUNNER_TEMP}/ci.log`;
+            const log = fs.existsSync(path) ? fs.readFileSync(path, "utf8") : "(no log captured)";
+            const tail = log.split("\n").slice(-200).join("\n").slice(-55000);
+            await github.rest.issues.createComment({
+              ...context.repo,
+              issue_number: context.issue.number,
+              body: `### CI failed at ${context.sha.slice(0, 10)}\n\nLast lines of the log:\n\n\`\`\`\n${tail}\n\`\`\`\n`,
+            });
