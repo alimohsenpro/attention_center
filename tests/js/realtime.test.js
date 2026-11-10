@@ -149,47 +149,50 @@ for (const random of [0, 0.5, 0.999]) {
 	});
 }
 
+// What happens to a started loop, as the browser and the socket deliver it.
+const nudgedBy =
+	(actor) =>
+	({ realtime }) =>
+		realtime.emit(NUDGE_EVENT, nudge(actor));
+const broadcastReceived = ({ realtime }) => realtime.emit(NUDGE_EVENT, broadcast());
+const socketConnects = ({ realtime }) => realtime.emit("connect");
+const backOnline = ({ network }) => network.dispatchEvent(new Event("online"));
+const becomesVisible = ({ page }) => {
+	page.setVisibility("hidden");
+	page.setVisibility("visible");
+};
+
 // The refresh names the actor of the nudges it answers only when they all name the same one.
 const ACTOR_CASES = [
-	["one nudge", [() => nudge(ME)], ME],
-	["two nudges by the same user", [() => nudge(ME), () => nudge(ME)], ME],
-	["nudges by two users", [() => nudge(ME), () => nudge(COLLEAGUE)], null],
-	["a nudge and a broadcast", [() => nudge(ME), broadcast], null],
-	["a nudge and the browser back online", [() => nudge(ME), "online"], null],
-	["a nudge and the socket connecting", [() => nudge(ME), "connect"], null],
-	["a broadcast", [broadcast], null],
+	["one nudge", [nudgedBy(ME)], ME],
+	["two nudges by the same user", [nudgedBy(ME), nudgedBy(ME)], ME],
+	["nudges by two users", [nudgedBy(ME), nudgedBy(COLLEAGUE)], null],
+	["a nudge and a broadcast", [nudgedBy(ME), broadcastReceived], null],
+	["a nudge and the browser back online", [nudgedBy(ME), backOnline], null],
+	["a nudge and the socket connecting", [nudgedBy(ME), socketConnects], null],
+	["a broadcast", [broadcastReceived], null],
 ];
 
-for (const [name, triggers, actor] of ACTOR_CASES) {
+for (const [name, events, actor] of ACTOR_CASES) {
 	test(`the actor of the refresh after ${name}`, () => {
-		const { clock, realtime, network, requests } = startLoop();
-		clock.to(10000);
-		requests.length = 0;
+		const loop = startLoop();
+		loop.clock.to(10000);
+		loop.requests.length = 0;
 
-		for (const triggerOf of triggers) {
-			if (triggerOf === "online") network.dispatchEvent(new Event("online"));
-			else if (triggerOf === "connect") realtime.emit("connect");
-			else realtime.emit(NUDGE_EVENT, triggerOf());
-		}
-		clock.to(20000);
+		for (const happen of events) happen(loop);
+		loop.clock.to(20000);
 
 		assert.deepEqual(
-			requests.map((request) => request.actor),
+			loop.requests.map((request) => request.actor),
 			[actor]
 		);
 	});
 }
 
 const OTHER_TRIGGERS = [
-	["the socket connects again", ({ realtime }) => realtime.emit("connect")],
-	["the browser is back online", ({ network }) => network.dispatchEvent(new Event("online"))],
-	[
-		"the page becomes visible",
-		({ page }) => {
-			page.setVisibility("hidden");
-			page.setVisibility("visible");
-		},
-	],
+	["the socket connects again", socketConnects],
+	["the browser is back online", backOnline],
+	["the page becomes visible", becomesVisible],
 ];
 
 for (const [name, fire] of OTHER_TRIGGERS) {

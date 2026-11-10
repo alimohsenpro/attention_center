@@ -426,8 +426,8 @@ tests/js/             node --test unit tests for the PURE modules and coordinati
 - `store.refreshSummary(actor)` sends one request at a time. A call while one is on its way sends no
   second request but asks for one more after it, shared by every call made meanwhile, because the
   change that prompted it may have been committed after the server read the counts. Its promise
-  settles once that summary is stored or its request failed, and never rejects. The window's own
-  refreshes (after `mark_seen`, "Try again") go through it too.
+  settles once that summary is stored or its request failed; a failed request does not reject it.
+  The window's own refreshes (after `mark_seen`, "Try again") go through it too.
 - The alert layer reads each stored summary through `store.onSummary(({previous, summary, actor}) =>
   …)`, `previous` being null for the first one of the page load. `actor` is the user named by the
   nudges a request answers when they all name the same one, and null otherwise: the heartbeat,
