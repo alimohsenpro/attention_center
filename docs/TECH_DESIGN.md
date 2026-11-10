@@ -81,7 +81,7 @@ as a fixture.
 
 | Field | Type | Notes |
 |---|---|---|
-| `key` | Data, unique, `autoname: field:key` | `app.identifier`; `^[a-z0-9_]+(\.[a-z0-9_]+)+$` |
+| `key` | Data, unique, set only once, `autoname: field:key` | `app.identifier`; `^[a-z0-9_]+(\.[a-z0-9_]+)+$` |
 | `label` | Data, translatable | |
 | `kind` | Select `Action\nInfo` | |
 | `source_type` | Select `DocType Query\nPython` | |
@@ -118,9 +118,9 @@ names `get_count` and `get_items`. Definition fields are everything except `enab
 `sort_order`, `label`, `roles` and `user_groups` [FR-SRC-01 AC2].
 
 Origin: Frappe does not enforce read-only fields on the server, so the controller does. Only a
-save with `doc.flags.from_hooks = True` may set or clear `is_system` or change the definition of a
-system source; the registry sync (§4.6) is the only code that sets this flag. A client cannot send
-it: `flags` is a reserved key that `frappe.get_doc` ignores.
+save with `doc.flags.from_hooks = True` may set or clear `is_system`, set `app`, or change the
+definition of a system source; the registry sync (§4.6) is the only code that sets this flag. A
+client cannot send it: `flags` is a reserved key that `frappe.get_doc` ignores.
 
 ### 3.3 `Attention User Preference` (name = user) [FR-SET-02]
 

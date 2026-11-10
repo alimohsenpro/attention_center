@@ -93,6 +93,18 @@ class TestAttentionSource(FrappeTestCase):
 			with self.subTest(key=key):
 				self.assertRejected(query_source(key=key), "app.identifier")
 
+	def test_key_is_fixed_once_the_source_exists(self):
+		# set_only_once makes the form show the key read-only; the server already keeps it equal to the name.
+		self.assertEqual(frappe.get_meta("Attention Source").get_field("key").set_only_once, 1)
+		doc = query_source().insert()
+		doc.key = "test_app.renamed"
+		doc.save()
+
+		self.assertEqual(
+			frappe.db.get_value("Attention Source", QUERY_SOURCE["key"], "key"), QUERY_SOURCE["key"]
+		)
+		self.assertFalse(frappe.db.exists("Attention Source", "test_app.renamed"))
+
 	def test_reference_doctype_must_be_a_doctype_with_its_own_records(self):
 		cases = {
 			"missing": None,
@@ -162,6 +174,8 @@ class TestAttentionSource(FrappeTestCase):
 			"unknown field": json.dumps([["no_such_field", "=", "Open"]]),
 			"operator not allowed": json.dumps([["status", "between", ["Open", "Closed"]]]),
 			"list for a single-value operator": json.dumps([["status", "=", ["Open"]]]),
+			"text for in": json.dumps([["status", "in", "Open,Closed"]]),
+			"text for not in": json.dumps([["allocated_to", "not in", "{user}"]]),
 			"nested list for in": json.dumps([["status", "in", [["Open"]]]]),
 			"object as value": json.dumps([["status", "=", {"value": "Open"}]]),
 			"is without set or not set": json.dumps([["reference_type", "is", "Open"]]),
@@ -310,6 +324,16 @@ class TestAttentionSource(FrappeTestCase):
 		doc.is_system = 1
 		with self.assertRaisesRegex(frappe.ValidationError, "Only an app's hooks"):
 			doc.save()
+
+	def test_only_hooks_can_set_the_app(self):
+		self.assertRejected(query_source(app="other_app"), "Only an app's hooks")
+
+		doc = query_source().insert()
+		doc.app = "other_app"
+		with self.assertRaisesRegex(frappe.ValidationError, "Only an app's hooks"):
+			doc.save()
+
+		self.assertIsNone(frappe.db.get_value("Attention Source", doc.name, "app"))
 
 	def test_hook_sync_can_update_a_system_definition(self):
 		from_hooks(SYSTEM_QUERY_SOURCE).insert()

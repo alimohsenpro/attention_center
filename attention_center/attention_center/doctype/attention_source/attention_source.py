@@ -43,6 +43,8 @@ class AttentionSource(Document):
 		before = self.get_doc_before_save()
 		if cint(self.is_system) != cint(before.is_system if before else 0):
 			frappe.throw(_("Only an app's hooks can declare a system source."))
+		if not self.is_system and self.app:
+			frappe.throw(_("Only an app's hooks can set {0}.").format(self.field_label("app")))
 
 		if before and self.is_system:
 			changed = self.changed_definition_fields(before)
@@ -197,7 +199,9 @@ class AttentionSource(Document):
 
 
 def validate_filter_value(field: str, operator: str, value: object) -> None:
-	values = value if operator in LIST_OPERATORS and isinstance(value, list) else [value]
+	if operator in LIST_OPERATORS and not isinstance(value, list):
+		frappe.throw(_("Filter on {0}: {1} takes a list of values.").format(field, operator))
+	values = value if operator in LIST_OPERATORS else [value]
 	if any(isinstance(item, list | dict) for item in values):
 		frappe.throw(
 			_("Filter on {0}: a value must be text or a number. Only in and not in take a list.").format(
