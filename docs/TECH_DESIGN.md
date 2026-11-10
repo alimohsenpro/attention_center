@@ -241,11 +241,14 @@ are converted to the system time zone. Date strings are accepted in ISO form onl
 
 ### 4.4 Declarative executor (`engine/doctype_query.py`)
 
-- Resolve placeholders in filter values (`{user}`, `{today}`) — value-level replacement only, never string-built SQL.
-- Count pass: `frappe.get_list(doctype, filters=…, fields=[name, date, priority, due], order_by=f"{date_field} desc", limit_page_length=COUNT_CAP + 1)` with `COUNT_CAP = 99`. From these rows derive `count` (capped, `capped` flag), `urgent`, `immediate`, `overdue`, `latest`, `new_since`. One query per source.
-- Items pass: same filters, the mapped fields, `limit_start`/`limit_page_length`. Sorting [FR-API-02] is done in SQL where possible (`order_by` on due/date); priority ordering is applied in Python within the fetched window of at most `COUNT_CAP + 1` rows, then paginated. Document this trade-off in code: beyond 100 pending rows the tail is ordered by date only.
-- `frappe.get_list` applies role permissions, user permissions and `permission_query_conditions` [FR-PERM-02]. Never use `frappe.get_all`, `frappe.db.sql`, or `ignore_permissions` in a source.
-- Titles come from `title_field`; `from_field` values that are user ids are resolved with `frappe.utils.get_fullname`.
+- Resolve placeholders in filter values (`{user}`, `{today}`) — value-level replacement only, never string-built SQL. One pass, so a user id containing `{today}` is not resolved again.
+- Count pass: `frappe.get_list(doctype, filters=…, fields=[name, date, priority, due], order_by="<date_field> desc, name desc", limit_page_length=COUNT_CAP + 1)` with `COUNT_CAP = 99` (in `contract.py`). From these rows derive `count`, `urgent`, `immediate`, `overdue`, `latest`, `new_since`; `contract.normalize_count` caps every number at 99 and sets `capped` from 100 rows on, for declarative and python sources alike. One query per source. An urgent or overdue row older than the newest 100 is not counted.
+- `new_since` counts rows whose date is after the user's watermark; a date-only field counts from midnight. Without a watermark every row is new.
+- Priority: `priority_map` maps the field's values; without a map the field must hold `urgent`, `immediate` or `normal` itself. Any other value is `normal`.
+- Items pass: the same filters and order, the mapped fields. The newest `COUNT_CAP + 1` rows (the rows the count covers) are sorted in Python by overdue, then priority; the sort is stable, so newest stays first within a class [FR-API-02]. A page reaching past those rows fetches the rest with `limit_start` in date order only: beyond 100 pending rows the tail is ordered by date. The `name` tie-breaker keeps the window and the tail from overlapping.
+- Every query runs under a statement timeout of `TIME_BUDGET_SECONDS` (2 s): `frappe.db.set_execution_timeout`, then back to `frappe.database.database.get_query_execution_timeout()`, the value Frappe sets when it connects. A stopped query fails the source like any exception [NFR-PERF-03].
+- `frappe.get_list` applies role permissions, user permissions and `permission_query_conditions` [FR-PERM-02], and drops fields above the user's permission level (a mapped field can then be missing). Never use `frappe.get_all`, `frappe.db.sql`, or `ignore_permissions` in a source.
+- Titles come from `title_field`; `from_field` values go through `frappe.utils.get_fullname` (`from_user`), which resolves user ids and returns any other value unchanged. `status_label` is the translated status value. The executor returns raw items; the runner normalises them.
 
 ### 4.5 Built-in sources (`sources/`)
 
@@ -266,10 +269,11 @@ The route exception for ToDo and Notification Log is expressed as an optional
 
 ### 4.7 Runner (`engine/runner.py`)
 
-`run_count(source, user)` and `run_items(source, user, start, page_length)`:
-- wrap each call in `try/except Exception`, measure duration, and convert failures into `{"state": "error"}`; log key, user, duration, exception type [FR-SRC-05, NFR-PRIV-01];
-- soft time budget: a source slower than 2 s is logged as slow; python sources that raise or return invalid shapes are errors. (No thread-based hard timeout in 0.1: it is unsafe with the DB connection. Declarative queries run under `frappe.db.set_execution_timeout` where the DB supports it — verify the helper exists in your Frappe version.)
-- cache `run_count` results per (source, user): `frappe.cache.hset(f"attention_center:count:{key}", user, payload)` with the stored time; an entry older than `summary_cache_ttl` is recomputed [FR-API-01 AC1].
+`run_count(source, user, since=None)` and `run_items(source, user, start, page_length)`, where `user` is the session user and `since` their watermark for the source:
+- `run_count` returns `{"state": "ok", count, capped, urgent, immediate, overdue, latest (ISO text), new_since}`, or the same keys with zeros and `"state": "error"`; `run_items` returns `{"state": "ok" | "error", "items": [...]}` with at most `page_length` normalised items.
+- wrap each call in `try/except Exception`, measure duration, and convert failures into the error state; log key, user, duration, exception type at ERROR [FR-SRC-05, NFR-PRIV-01]. A `ContractError` adds its own message, which quotes no content. Messages the failed source queued with `frappe.msgprint`/`frappe.throw` are dropped, so a background refresh never opens a dialog.
+- soft time budget: a source slower than `TIME_BUDGET_SECONDS` (2 s) is logged as slow (WARNING); python sources that raise or return invalid shapes are errors. (No thread-based hard timeout in 0.1: it is unsafe with the DB connection. Declarative queries run under a statement timeout, see §4.4.)
+- cache `run_count` results per (source, user): `frappe.cache.hset(f"attention_center:count:{key}", user, {stored_at, since, result})`; an entry older than `summary_cache_ttl` or stored for another watermark is recomputed [FR-API-01 AC1]. Failed results are cached too, so a broken or slow source runs at most once per user per TTL.
 
 ## 5. Server API (`attention_center/api.py`)
 
