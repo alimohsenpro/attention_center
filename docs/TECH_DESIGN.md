@@ -432,7 +432,12 @@ tests/js/             node --test unit tests for the PURE modules and coordinati
   …)`, `previous` being null for the first one of the page load. `actor` is the user named by the
   nudges a request answers when they all name the same one, and null otherwise: the heartbeat,
   visibility, reconnection, `online`, broadcasts and the window's refreshes name none, so
-  self-suppression (§7.4) applies only when the user's own change is the only known cause.
+  self-suppression (§7.4) applies only when the user's own change is the only known cause. A request
+  the loop sends while a broadcast waits out its random delay names none either: it already carries
+  that broadcast's change. One limit remains, because the loop does not know when a request is sent
+  or answered: a colleague's change whose nudge arrives while a request naming the user is on its way,
+  or queued behind another, can reach the alert layer with the user as `actor`. The window lasts about
+  one request, not the up to 5 s of a broadcast's wait.
 
 ### 7.4 Alerts [FR-ALERT-01..06]
 
