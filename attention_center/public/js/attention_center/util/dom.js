@@ -10,3 +10,11 @@ export function adoptStyles(root, css) {
 		root.append(style);
 	}
 }
+
+// A new element with an optional class and text; the text is set as text, never parsed as HTML.
+export function element(tag, className, text) {
+	const node = document.createElement(tag);
+	if (className) node.className = className;
+	if (text) node.textContent = text;
+	return node;
+}

@@ -1,3 +1,4 @@
+import { element } from "../util/dom.js";
 import { isDeskRoute } from "../util/route.js";
 import { ICONS } from "./icons.js";
 
@@ -6,9 +7,8 @@ import { ICONS } from "./icons.js";
 // worded label with an icon, not only a colour (AC2).
 //
 // `entries` are {source, item} pairs; `sourceLabel(key)` names a source; `format` has `age(iso)` and
-// `date(iso)`; `onOpen(route)` opens an item after a plain click (a click with a modifier key or the middle
-// button is left to the browser, which opens the link in a new tab); `safe` wraps the event handlers.
-export function renderTable(entries, { showSource, sourceLabel, format, onOpen, safe }) {
+// `date(iso)`; `onOpenClick` handles a click on an item's "Open" link, whose href is the item's route.
+export function renderTable(entries, { showSource, sourceLabel, format, onOpenClick }) {
 	const table = document.createElement("table");
 	const head = table.createTHead().insertRow();
 	const headings = [
@@ -19,45 +19,42 @@ export function renderTable(entries, { showSource, sourceLabel, format, onOpen, 
 		__("Priority", null, "Attention Center"),
 		__("Status", null, "Attention Center"),
 	];
-	for (const heading of headings) head.append(cell("th", heading));
-	const openHeading = cell("th");
-	openHeading.append(text("span", __("Open", null, "Attention Center"), "visually-hidden"));
+	for (const heading of headings) head.append(element("th", null, heading));
+	const openHeading = element("th");
+	openHeading.append(element("span", "visually-hidden", __("Open", null, "Attention Center")));
 	head.append(openHeading);
 	for (const th of head.cells) th.scope = "col";
 
 	const body = table.createTBody();
-	const onClick = safe(onOpenClick(onOpen));
 	for (const { source, item } of entries) {
-		body.append(row(item, showSource ? sourceLabel(source) : null, format, onClick));
+		body.append(row(item, showSource ? sourceLabel(source) : null, format, onOpenClick));
 	}
-	const wrapper = document.createElement("div");
-	wrapper.className = "table-wrap";
+	const wrapper = element("div", "table-wrap");
 	wrapper.append(table);
 	return wrapper;
 }
 
 function row(item, sourceName, format, onClick) {
-	const tr = document.createElement("tr");
+	const tr = element("tr");
 	tr.toggleAttribute("data-overdue", item.overdue);
 	tr.dataset.priority = item.priority;
 
-	const title = cell("td");
-	title.className = "cell-item";
-	title.append(text("span", item.title, "item-title"));
+	const title = element("td", "cell-item");
+	title.append(element("span", "item-title", item.title));
 
-	const type = cell("td");
-	if (item.type_label) type.append(text("span", item.type_label));
-	if (sourceName) type.append(text("span", sourceName, "muted"));
+	const type = element("td");
+	if (item.type_label) type.append(element("span", null, item.type_label));
+	if (sourceName) type.append(element("span", "muted", sourceName));
 
-	tr.append(title, type, cell("td", item.from_label), dateCell(item.date, format));
+	tr.append(title, type, element("td", null, item.from_label), dateCell(item.date, format));
 	tr.append(priorityCell(item, format), statusCell(item), openCell(item, onClick));
 	return tr;
 }
 
 function dateCell(iso, format) {
-	const td = cell("td");
+	const td = element("td");
 	if (iso) {
-		const time = text("time", format.age(iso));
+		const time = element("time", null, format.age(iso));
 		time.dateTime = iso;
 		time.title = format.date(iso);
 		td.append(time);
@@ -66,43 +63,37 @@ function dateCell(iso, format) {
 }
 
 function priorityCell(item, format) {
-	const td = cell("td");
-	if (item.priority === "immediate")
-		td.append(pill(__("Immediate", null, "Attention Center"), "immediate"));
-	else if (item.priority === "urgent")
-		td.append(pill(__("Urgent", null, "Attention Center"), "urgent"));
-	else td.append(text("span", __("Normal", null, "Attention Center"), "muted"));
-	if (item.overdue) td.append(pill(__("Overdue", null, "Attention Center"), "overdue"));
-	else if (item.due)
-		td.append(
-			text("span", __("Due {0}", [format.date(item.due)], "Attention Center"), "muted")
-		);
+	const td = element("td");
+	td.append(priorityLabel(item.priority));
+	if (item.overdue) {
+		td.append(pill(__("Overdue", null, "Attention Center"), "overdue"));
+	} else if (item.due) {
+		const due = __("Due {0}", [format.date(item.due)], "Attention Center");
+		td.append(element("span", "muted", due));
+	}
 	return td;
 }
 
+function priorityLabel(priority) {
+	if (priority === "immediate") return pill(__("Immediate", null, "Attention Center"), priority);
+	if (priority === "urgent") return pill(__("Urgent", null, "Attention Center"), priority);
+	return element("span", "muted", __("Normal", null, "Attention Center"));
+}
+
 function statusCell(item) {
-	const td = cell("td");
+	const td = element("td");
 	if (item.status_label) {
-		const status = text("span", item.status_label, "status");
+		const status = element("span", "status", item.status_label);
 		status.dataset.color = item.status_color;
 		td.append(status);
 	}
 	return td;
 }
 
-function onOpenClick(onOpen) {
-	return (event) => {
-		if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
-			return;
-		event.preventDefault();
-		onOpen(event.currentTarget.getAttribute("href"));
-	};
-}
-
 function openCell(item, onClick) {
-	const td = cell("td");
+	const td = element("td");
 	if (!isDeskRoute(item.route)) return td;
-	const link = text("a", __("Open", null, "Attention Center"), "open-link");
+	const link = element("a", "open-link", __("Open", null, "Attention Center"));
 	link.href = item.route;
 	link.setAttribute("aria-label", __("Open {0}", [item.title], "Attention Center"));
 	link.addEventListener("click", onClick);
@@ -111,23 +102,9 @@ function openCell(item, onClick) {
 }
 
 function pill(label, kind) {
-	const element = document.createElement("span");
-	element.className = "pill";
-	element.dataset.kind = kind;
-	element.innerHTML = ICONS.alert;
-	element.append(text("span", label));
-	return element;
-}
-
-function cell(tag, value) {
-	const element = document.createElement(tag);
-	if (value) element.textContent = value;
-	return element;
-}
-
-function text(tag, value, className) {
-	const element = document.createElement(tag);
-	element.textContent = value;
-	if (className) element.className = className;
-	return element;
+	const node = element("span", "pill");
+	node.dataset.kind = kind;
+	node.innerHTML = ICONS.alert;
+	node.append(element("span", null, label));
+	return node;
 }

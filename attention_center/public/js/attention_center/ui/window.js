@@ -1,4 +1,4 @@
-import { adoptStyles } from "../util/dom.js";
+import { adoptStyles, element } from "../util/dom.js";
 import { createFeed } from "../util/feed.js";
 import { trapIndex } from "../util/keys.js";
 import { routeArguments } from "../util/route.js";
@@ -78,7 +78,15 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		"click",
 		safe(() => turnPage(1))
 	);
-	viewAll.addEventListener("click", safe(openLink));
+	// "Open" and "View all" are links: a click with a modifier key or the middle button is left to the browser,
+	// which opens a new tab; a plain click navigates in place.
+	const onLinkClick = safe((event) => {
+		const { button, ctrlKey, metaKey, shiftKey, altKey } = event;
+		if (button !== 0 || ctrlKey || metaKey || shiftKey || altKey) return;
+		event.preventDefault();
+		navigate(event.currentTarget.getAttribute("href"));
+	});
+	viewAll.addEventListener("click", onLinkClick);
 	overlay.addEventListener(
 		"pointerdown",
 		safe((event) => (pressedOnBackdrop = event.target === overlay))
@@ -101,7 +109,6 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 			}
 		})
 	);
-	if (store.get().ui.open) show();
 
 	function show() {
 		opener = root.activeElement ?? document.activeElement;
@@ -134,13 +141,6 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		restoreFocus = false;
 		close();
 		frappe.set_route(routeArguments(route));
-	}
-
-	function openLink(event) {
-		if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey)
-			return;
-		event.preventDefault();
-		navigate(event.currentTarget.getAttribute("href"));
 	}
 
 	function onKeydown(event) {
@@ -220,13 +220,9 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	function feedFor(tab) {
 		const keys = tab.sources.join("\n");
 		if (feeds.get(tab.id)?.keys !== keys) {
-			feeds.set(tab.id, { keys, feed: createFeed(tab.sources, fetchItems, pageSize) });
+			feeds.set(tab.id, { keys, feed: createFeed(tab.sources, api.getItems, pageSize) });
 		}
 		return feeds.get(tab.id).feed;
-	}
-
-	function fetchItems(key, start, size) {
-		return api.getItems(key, start, size);
 	}
 
 	function load() {
@@ -277,16 +273,20 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		}
 		panel.removeAttribute("aria-busy");
 		markSeen(tab.sources.filter((key) => !failed.includes(key)));
-		if (!items.length) {
-			content.replaceChildren(
-				state(ICONS.check, __("Nothing is waiting on you"), null, "empty")
-			);
-			pager.hidden = true;
-			announce(__("Nothing is waiting on you"));
-			keepFocusInside();
-			return;
-		}
+		if (items.length) showItems(tab, { items, hasMore, failed }, summary, retry);
+		else showEmpty();
+		keepFocusInside();
+	}
 
+	function showEmpty() {
+		content.replaceChildren(
+			state(ICONS.check, __("Nothing is waiting on you"), null, "empty")
+		);
+		pager.hidden = true;
+		announce(__("Nothing is waiting on you"));
+	}
+
+	function showItems(tab, { items, hasMore, failed }, summary, retry) {
 		const labels = new Map(summary.sources.map((source) => [source.key, source.label]));
 		const parts = [];
 		if (failed.length) {
@@ -305,8 +305,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 				showSource: tab.id === ALL_TAB,
 				sourceLabel: (key) => labels.get(key),
 				format: FORMAT,
-				onOpen: navigate,
-				safe,
+				onOpenClick: onLinkClick,
 			})
 		);
 		content.replaceChildren(...parts);
@@ -317,7 +316,6 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		next.disabled = !hasMore;
 		pageLabel.textContent = __("Page {0}", [page + 1], "Attention Center");
 		announce(__("Page {0}. Items shown: {1}", [page + 1, items.length]));
-		keepFocusInside();
 	}
 
 	// Viewing a tab marks its sources seen once per opening of the window [FR-API-03]; the summary that follows
@@ -352,13 +350,6 @@ const FORMAT = {
 	age: (iso) => frappe.datetime.prettyDate(iso) || FORMAT.date(iso),
 	date: (iso) => frappe.datetime.str_to_user(iso.replace("T", " ")),
 };
-
-function element(tag, className, text) {
-	const node = document.createElement(tag);
-	if (className) node.className = className;
-	if (text) node.textContent = text;
-	return node;
-}
 
 function iconButton(icon, label) {
 	const button = element("button", "icon-button");

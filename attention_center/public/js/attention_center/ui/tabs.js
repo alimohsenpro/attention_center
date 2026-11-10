@@ -1,11 +1,11 @@
+import { element } from "../util/dom.js";
 import { roveIndex } from "../util/keys.js";
 
 // The tab strip of the window [FR-UI-02, FR-UI-08]: ARIA tabs with a roving tabindex. The arrow keys, Home and
 // End move focus; Enter, Space or a click selects. Selecting fetches items from the server, so focus alone
 // does not select (manual activation).
 export function createTabs(parent, { panelId, safe, onSelect }) {
-	const list = document.createElement("div");
-	list.className = "tabs";
+	const list = element("div", "tabs");
 	list.setAttribute("role", "tablist");
 	list.setAttribute("aria-label", __("Sources", null, "Attention Center"));
 	parent.append(list);
@@ -33,9 +33,8 @@ export function createTabs(parent, { panelId, safe, onSelect }) {
 	}
 
 	function tabButton(tab, index, selected) {
-		const button = document.createElement("button");
+		const button = element("button", "tab");
 		button.type = "button";
-		button.className = "tab";
 		button.id = `ac-tab-${index}`;
 		button.dataset.id = tab.id;
 		button.setAttribute("role", "tab");
@@ -44,22 +43,13 @@ export function createTabs(parent, { panelId, safe, onSelect }) {
 		button.tabIndex = selected ? 0 : -1;
 		button.toggleAttribute("data-attention", tab.attention);
 
-		const label = document.createElement("span");
-		label.textContent = tab.label;
-		button.append(label);
-		if (tab.counter) {
-			const counter = document.createElement("span");
-			counter.className = "tab-count";
-			counter.textContent = tab.counter;
-			button.append(counter);
-		}
+		button.append(element("span", null, tab.label));
+		if (tab.counter) button.append(element("span", "tab-count", tab.counter));
 		if (tab.unseen) {
-			const dot = document.createElement("span");
-			dot.className = "tab-dot";
-			const text = document.createElement("span");
-			text.className = "visually-hidden";
-			text.textContent = __("New", null, "Attention Center");
-			button.append(dot, text);
+			button.append(
+				element("span", "tab-dot"),
+				element("span", "visually-hidden", __("New", null, "Attention Center"))
+			);
 		}
 		button.addEventListener(
 			"click",
