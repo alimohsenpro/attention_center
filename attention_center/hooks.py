@@ -1,3 +1,4 @@
+# Frappe does not read imported modules as hooks, so only `attention_sources` below comes from this import.
 from attention_center.sources import builtin
 
 app_name = "attention_center"

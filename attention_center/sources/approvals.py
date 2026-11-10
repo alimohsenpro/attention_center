@@ -55,11 +55,13 @@ def _pending(user: str) -> Iterator[tuple[frappe._dict, Document]]:
 
 
 def _readable_document(doctype: str, name: str, user: str) -> Document | None:
+	queued_messages = len(frappe.local.message_log)
 	try:
 		document = frappe.get_doc(doctype, name)
 	except frappe.DoesNotExistError:
-		# The document or its DocType was removed without its actions; frappe.throw queued a message.
-		frappe.clear_last_message()
+		# The document or its DocType was removed without its actions. Drop the "not found" message
+		# frappe.throw queued, or the background refresh would show it to the user.
+		del frappe.local.message_log[queued_messages:]
 		return None
 	return document if frappe.has_permission(doctype, "read", document, user=user) else None
 
