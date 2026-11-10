@@ -86,6 +86,8 @@ def make_user_group(name: str, members: list[str]) -> str:
 
 class RegistryTestCase(FrappeTestCase):
 	def setUp(self):
+		# The sources this app declares were synced at install; these tests declare their own.
+		frappe.db.delete(SOURCE, {"is_system": 1})
 		registry.clear_visibility_cache()
 
 	def tearDown(self):

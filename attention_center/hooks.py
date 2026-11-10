@@ -1,3 +1,5 @@
+from attention_center.sources import builtin
+
 app_name = "attention_center"
 app_title = "Attention Center"
 app_publisher = "Attention Center Contributors"
@@ -87,6 +89,12 @@ after_install = "attention_center.install.after_install"
 after_migrate = "attention_center.install.after_migrate"
 
 fixtures = [{"dt": "Role", "filters": [["name", "=", "Attention Manager"]]}]
+
+# Attention Sources
+# -----------------
+# The built-in sources, declared through the same hook as any consumer app's
+
+attention_sources = builtin.SOURCES
 
 # Uninstallation
 # ------------

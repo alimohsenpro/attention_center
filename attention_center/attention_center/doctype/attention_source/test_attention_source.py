@@ -370,7 +370,7 @@ class TestAttentionSource(FrappeTestCase):
 				with self.subTest(user=user, ptype=ptype):
 					self.assertTrue(frappe.has_permission("Attention Source", ptype, user=user))
 			frappe.set_user(user)
-			self.assertEqual(frappe.get_list("Attention Source", pluck="name"), [QUERY_SOURCE["key"]])
+			self.assertIn(QUERY_SOURCE["key"], frappe.get_list("Attention Source", pluck="name"))
 
 		frappe.set_user(desk_user)
 		self.assertFalse(frappe.has_permission("Attention Source", "read", user=desk_user))
