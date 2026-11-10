@@ -9,6 +9,8 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 sudo apt-get update -qq
 sudo apt-get install -y -qq mariadb-client
+# The MariaDB 10.6 service container has no TLS, while newer clients require it by default.
+printf '[client]\nskip-ssl\n' > ~/.my.cnf
 
 pip install --quiet frappe-bench
 bench init --skip-redis-config-generation --skip-assets --python "$(which python)" \
