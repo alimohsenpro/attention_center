@@ -89,6 +89,7 @@ as a fixture.
 | `sort_order` | Int | ascending |
 | `is_system` | Check, read-only | set for hook-declared sources |
 | `app` | Data, read-only | declaring app |
+| `hook_label` | Data, hidden, read-only | label as last declared in the hooks; the sync updates `label` only while the two are equal, so an admin's relabel sticks |
 | `icon` | Data | name from the bundled icon set |
 | `list_route` | Data | optional "view all" route, must start with `/app/` |
 | DocType Query section | | visible when `source_type = DocType Query` |
@@ -115,7 +116,8 @@ Also enforced: `priority_map_json` is an object whose values are `urgent`, `imme
 and needs `priority_field`; `in`/`not in` take a list, other operators a single value, `is` takes
 `set` or `not set`; a `DocType Query` source leaves the Python fields empty; a `Python` source
 names `get_count` and `get_items`. Definition fields are everything except `enabled`,
-`sort_order`, `label`, `roles` and `user_groups` [FR-SRC-01 AC2].
+`sort_order`, `label`, `roles` and `user_groups` [FR-SRC-01 AC2]. Saving or deleting a source,
+or saving the settings, clears the visibility cache (§4.6).
 
 Origin: Frappe does not enforce read-only fields on the server, so the controller does. Only a
 save with `doc.flags.from_hooks = True` may set or clear `is_system`, set `app`, or change the
@@ -199,6 +201,14 @@ def get_recipients(doc) -> list[str]: ...
 
 The engine inspects the signature once and passes `since` only if accepted.
 
+`contract.validate_source_def` checks the shape of a hook entry: a supported `contract_version`
+(an `int`), the key format, `type`, `kind`, `label`, the optional `icon` and `list_route`, the
+keys each type needs, and the types of their values. A key that is not part of the entry's type
+(a misspelt `filter`, a python key in a declarative entry) is rejected rather than ignored, because
+an ignored filter would widen the query. The filters, the priority map and the fieldnames are
+checked against the DocType by the `Attention Source` controller when the sync saves the entry,
+so those rules exist once.
+
 ### 4.3 Item
 
 | Key | Required | Type | Notes |
@@ -218,6 +228,14 @@ The engine inspects the signature once and passes `since` only if accepted.
 \* one of the two. `engine/contract.py::normalize_item` validates, strips HTML, truncates
 `title` to 200 chars, coerces dates to ISO strings and drops invalid items with a single
 `frappe.logger("attention_center")` warning per source per request.
+
+Normalised items carry exactly the keys above (with `from_label` resolved, `route` built from the
+reference when needed) plus `overdue`; anything else a source returns is dropped. Items without a
+valid `id`, `title` or route, and repeated ids, are dropped (`normalize_items`, one warning with
+the source key and counts). An invalid optional value falls back to its default instead of
+dropping the item, so the user never loses an item that can still be opened. A `due` date is
+overdue from the next day on; a `due` datetime once it has passed. Datetimes with a time zone
+are converted to the system time zone. Date strings are accepted in ISO form only.
 
 ### 4.4 Declarative executor (`engine/doctype_query.py`)
 
@@ -240,9 +258,9 @@ The route exception for ToDo and Notification Log is expressed as an optional
 
 ### 4.6 Registry and visibility (`engine/registry.py`)
 
-- `load_hook_sources()` reads `frappe.get_hooks("attention_sources")`, validates each entry (`contract.validate_source_def`), skips bad ones with one log line each.
-- `sync_sources()` (called from `after_migrate` and `after_install`) upserts hook sources into `Attention Source` with `is_system = 1`, preserving admin-owned fields (`enabled`, `sort_order`, `label` if changed by admin, targeting), and disables system sources whose app/hook vanished.
-- `get_visible_sources(user)` returns enabled sources, ordered, where targeting matches (`frappe.get_roles(user)`, `User Group Member`) and — for declarative ones — `frappe.has_permission(doctype, "read", user=user)`. Cached per user in `frappe.cache` (`attention_center:visible`), cleared on source/settings save and on role or user-group changes (doc events on `User`, `User Group`, `Has Role` are too broad: clear the whole hash when `Attention Source` or settings change, and give the per-user entry a 5-minute TTL).
+- `load_hook_sources()` reads `frappe.get_hooks("attention_sources", app_name=app)` for each installed app (so the declaring app is known), validates each entry (`contract.validate_source_def`), skips bad ones with one log line each (level ERROR, Frappe's default production level). A duplicate key is skipped; the app installed first keeps it.
+- `sync_sources()` (called from `after_migrate` and `after_install`) upserts hook sources into `Attention Source` with `is_system = 1`, preserving admin-owned fields (`enabled`, `sort_order`, `label` if changed by admin, targeting), and disables system sources whose app/hook vanished. It writes only when a value differs, so a repeated migrate changes nothing. An entry the controller rejects (unknown DocType or field, bad filter) is logged and skipped like a vanished one: a system source whose new definition is rejected is disabled and keeps its last valid definition. A disabled system source stays disabled when its entry comes back; enabling it again is an admin's act. A hook entry whose key is already used by a source created in the desk is skipped and the desk source left untouched.
+- `get_visible_sources(user)` returns enabled sources, ordered by `sort_order` then creation, where targeting matches (`frappe.get_roles(user)`, `User Group Member`) and — for declarative ones — `frappe.has_permission(doctype, "read", user=user)`. Targeting is a union: no roles and no groups means every desk user, otherwise holding any listed role or belonging to any listed group is enough. A declarative source whose DocType no longer exists (its app was removed before the next migrate) is hidden instead of failing. Cached per user in `frappe.cache` (`attention_center:visible`), cleared on source/settings save and on role or user-group changes (doc events on `User`, `User Group`, `Has Role` are too broad: clear the whole hash when `Attention Source` or settings change, and give the per-user entry a 5-minute TTL). The hash is cleared at once and again after commit, so a request that read the old rows in between cannot keep them for five minutes.
 
 ### 4.7 Runner (`engine/runner.py`)
 
