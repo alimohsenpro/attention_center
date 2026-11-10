@@ -142,6 +142,21 @@ class TestAttentionSource(FrappeTestCase):
 
 		self.assertEqual(doc.title_field, "name")
 
+	def test_route_fields_must_be_fields_of_the_doctype(self):
+		for fieldname in ("route_field", "route_doctype_field", "route_name_field"):
+			with self.subTest(fieldname):
+				self.assertRejected(query_source(**{fieldname: "no_such_field"}), "has no field")
+
+	def test_the_route_doctype_and_name_fields_are_set_together(self):
+		for fieldname in ("route_doctype_field", "route_name_field"):
+			with self.subTest(fieldname):
+				self.assertRejected(query_source(**{fieldname: "reference_type"}), "together")
+
+		doc = query_source(
+			route_field="description", route_doctype_field="reference_type", route_name_field="reference_name"
+		).insert()
+		self.assertEqual(doc.route_name_field, "reference_name")
+
 	def test_recipient_fields_must_be_fields_of_the_doctype(self):
 		self.assertRejected(query_source(recipient_fields="allocated_to, no_such_field"), "has no field")
 

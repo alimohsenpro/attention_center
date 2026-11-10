@@ -70,6 +70,14 @@ class TestSourceDefinition(FrappeTestCase):
 				PYTHON_DEF, "get_recipients", "watch_doctypes", "list_route"
 			),
 			"optional keys set to None": {**QUERY_DEF, "filters": None, "icon": None, "list_route": None},
+			"declarative with route fields": {
+				**QUERY_DEF,
+				"route_fields": {
+					"route": "description",
+					"doctype": "reference_type",
+					"name": "reference_name",
+				},
+			},
 		}
 		for case, definition in cases.items():
 			with self.subTest(case):
@@ -135,6 +143,22 @@ class TestSourceDefinition(FrappeTestCase):
 			"recipient_fields as text": (
 				{**QUERY_DEF, "recipient_fields": "allocated_to"},
 				"recipient_fields",
+			),
+			"route_fields not a dict": (
+				{**QUERY_DEF, "route_fields": ["reference_type", "reference_name"]},
+				"route_fields must map route, doctype, name",
+			),
+			"unknown route field role": (
+				{**QUERY_DEF, "route_fields": {"doctype": "reference_type", "docname": "reference_name"}},
+				"route_fields must map",
+			),
+			"route fieldname not text": (
+				{**QUERY_DEF, "route_fields": {"route": 1}},
+				"route_fields must map",
+			),
+			"route_fields in a python entry": (
+				{**PYTHON_DEF, "route_fields": {"route": "link"}},
+				"unknown keys for type python: route_fields",
 			),
 			"no get_count": (without(PYTHON_DEF, "get_count"), "get_count"),
 			"no get_items": (without(PYTHON_DEF, "get_items"), "get_items"),
