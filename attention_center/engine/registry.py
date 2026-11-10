@@ -135,8 +135,10 @@ def _definition_values(source: dict) -> dict:
 def get_visible_sources(user: str) -> list[frappe._dict]:
 	"""Enabled sources the user is targeted by and, for DocType queries, may read; in display order.
 
+	The caller must make sure the user is a desk user (§5): a source without targeting matches anyone.
 	Cached per user for VISIBLE_TTL_SECONDS: role and group changes show up within that time, source and
-	settings changes at once (clear_visibility_cache).
+	settings changes once their transaction commits (clear_visibility_cache), except in a request whose
+	read began before that commit, which may cache the old state until the entry expires.
 	"""
 	cached = frappe.cache.hget(VISIBLE_CACHE, user)
 	if cached and cached["expires_at"] > time.time():
