@@ -55,7 +55,7 @@ class AttentionSource(Document):
 
 	def changed_definition_fields(self, before: Document) -> list[str]:
 		return [
-			_(df.label)
+			_(df.label, context=self.doctype)
 			for df in self.meta.fields
 			if df.fieldtype not in no_value_fields
 			and df.fieldname not in ADMIN_FIELDS
@@ -186,7 +186,7 @@ class AttentionSource(Document):
 			frappe.throw(_("{0} is not valid JSON.").format(self.field_label(fieldname)))
 
 	def field_label(self, fieldname: str) -> str:
-		return _(self.meta.get_label(fieldname))
+		return _(self.meta.get_label(fieldname), context=self.doctype)
 
 	def throw_unknown_field(self, label: str, fieldname: str) -> None:
 		frappe.throw(

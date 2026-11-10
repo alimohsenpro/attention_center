@@ -202,6 +202,14 @@ class TestAttentionSource(FrappeTestCase):
 			with self.subTest(route=route):
 				self.assertRejected(query_source(list_route=route), "/app/")
 
+	def test_messages_name_fields_in_the_app_wording(self):
+		lang = frappe.local.lang
+		frappe.local.lang = "ar"
+		try:
+			self.assertRejected(query_source(from_field="no_such_field"), "حقل المرسِل")
+		finally:
+			frappe.local.lang = lang
+
 	def test_python_source_cannot_be_created_from_the_desk(self):
 		self.assertRejected(frappe.get_doc({**PYTHON_SOURCE, "is_system": 0}), "hooks")
 		self.assertRejected(frappe.get_doc(PYTHON_SOURCE), "hooks")

@@ -21,13 +21,16 @@ class AttentionCenterSettings(Document):
 		for fieldname, (low, high) in BOUNDS.items():
 			if not low <= cint(self.get(fieldname)) <= high:
 				frappe.throw(
-					_("{0} must be between {1} and {2}.").format(_(self.meta.get_label(fieldname)), low, high)
+					_("{0} must be between {1} and {2}.").format(self.field_label(fieldname), low, high)
 				)
 
 		interval = flt(self.reminder_interval_hours)
 		if interval != 0 and interval < MIN_REMINDER_INTERVAL_HOURS:
 			frappe.throw(
 				_("{0} must be 0 (off) or at least {1}.").format(
-					_(self.meta.get_label("reminder_interval_hours")), MIN_REMINDER_INTERVAL_HOURS
+					self.field_label("reminder_interval_hours"), MIN_REMINDER_INTERVAL_HOURS
 				)
 			)
+
+	def field_label(self, fieldname: str) -> str:
+		return _(self.meta.get_label(fieldname), context=self.doctype)

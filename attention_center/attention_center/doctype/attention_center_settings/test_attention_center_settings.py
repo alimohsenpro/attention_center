@@ -82,6 +82,15 @@ class TestAttentionCenterSettings(FrappeTestCase):
 					with self.assertRaisesRegex(frappe.ValidationError, "must be between"):
 						settings(**{fieldname: value}).save()
 
+	def test_bound_messages_name_fields_in_the_app_wording(self):
+		lang = frappe.local.lang
+		frappe.local.lang = "ar"
+		try:
+			with self.assertRaisesRegex(frappe.ValidationError, "عدد العناصر في الصفحة"):
+				settings(page_size=51).save()
+		finally:
+			frappe.local.lang = lang
+
 	def test_reminder_interval_is_off_or_at_least_a_quarter_hour(self):
 		for hours in (0, 0.25, 2, 24):
 			with self.subTest(hours=hours):
