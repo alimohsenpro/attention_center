@@ -4,7 +4,7 @@ import frappe
 from frappe.model.workflow import apply_workflow
 from frappe.permissions import add_user_permission
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import add_to_date, get_datetime, now_datetime
+from frappe.utils import add_to_date, now_datetime
 
 from attention_center.engine import registry, runner
 from attention_center.sources import approvals
