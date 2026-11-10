@@ -276,7 +276,7 @@ sudo supervisorctl restart all
 
 | العَرَض | الحل |
 |---|---|
-| `ant apply` يرفض البيئة أو جلسة لا تبدأ بسبب الحزم | احذف قسم `packages` من `pipeline/environments/bench.yaml`، ثم `ant apply pipeline/environments/bench.yaml`. سكربت `scripts/dev/bench_up.sh` يحاول التثبيت داخل الجلسة |
+| جلسة تتأخر في البدء أو تفشل عند تثبيت الحزم | البيئة لا تثبّت شيئاً مسبقاً عن قصد (الحاوية تمنع HTTP العادي). التثبيت يتم داخل الجلسة بـ `scripts/dev/bench_up.sh` عبر HTTPS. إن فشل فانظر رسالة الخطأ في صفحة الجلسة |
 | جلسة الباني تقول إن `AC_GITHUB_TOKEN` غير موجود أو يُرفض | أعد `pipeline/deployments.sh credentials` بعد التأكد من التوكنين، وتأكد أن `api.github.com` مسموح في بيانات الاعتماد |
 | الدمج يُرفض برسالة عن status check | تأكد أن الاسمين في حماية الفرع هما `tests` و`agent-review` بالضبط |
 | لا يظهر `tests` عند إضافة الفحوص | انتظر اكتمال أول CI على `main` |
@@ -297,10 +297,10 @@ sudo supervisorctl restart all
 - `ant apply` وتثبيت `ant`: <https://platform.claude.com/docs/en/cli-sdks-libraries/cli/apply> و <https://platform.claude.com/docs/en/cli-sdks-libraries/cli/quickstart>
 - صلاحيات توكنات GitHub لكل endpoint: <https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens>
 
-**لم يُختبر عملياً بعد** (لا أملك حسابك، وأول تشغيل هو الاختبار):
+**اختُبر عملياً يوم 2026-11-10:** CI على GitHub، بناء bench وتشغيل الاختبارات داخل حاوية Console (نحو 4 دقائق من حاوية جديدة)، و`ant apply`، وتخزين التوكنين في الخزنتين.
 
-- تثبيت MariaDB وتشغيله داخل الحاوية. إن تعذّر فالمهمة `M0-T1` تنتقل إلى PostgreSQL محلياً وتبقي MariaDB في CI.
-- ملف CI وسكربت `bench_up.sh`: مبنيان على قالب Frappe الرسمي لكن لم يعملا على GitHub بعد.
-- سكربت `pipeline/deployments.sh`: صيغة أوامر `ant` مأخوذة من الوثائق، ولم تُنفَّذ.
+**لم يُختبر عملياً بعد:**
+
+- إنشاء الجدولة بـ `pipeline/deployments.sh create`: صيغة الأمر من الوثائق ولم تُنفَّذ بعد، وكذلك دورة كاملة (بناء، مراجعة، دمج).
 - ماذا يحدث لو بدأ تشغيل مجدول وجلسة سابقة ما زالت تعمل: الوثائق لا تذكره، فصمّمتُ السكربت ليتحمّل التداخل (حجز الـPR بعنوان `WIP:`).
 - ترتيب استهلاك الأرصدة إن تعددت، وهل تغطي الأرصدة الترويجية تكلفة زمن الجلسة: غير مذكور صراحةً في الوثائق.

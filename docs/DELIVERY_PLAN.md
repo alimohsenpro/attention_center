@@ -43,6 +43,7 @@ deployments (`pipeline/README.md`).
 - Requirements: NFR-MAINT-01
 - Depends on: —
 - Scope: `scripts/dev/bench_up.sh`, `scripts/ci/*.sh`, `docs/SANDBOX.md`, one trivial backend test, `attention_center/tests/`.
+- Already known from the operator's smoke test on 2026-11-10 (record it in `docs/SANDBOX.md`, re-measure the timings, do not rediscover it): the sandbox runs as root on Ubuntu 24.04 with Python 3.11, Node 22, yarn and Redis present and MariaDB absent; plain-HTTP egress is blocked while HTTPS works, so the environment has no package pre-install and `bench_up.sh` switches the apt mirrors to HTTPS; `bench init` refuses to run as root without a `frappe_user` config; with both handled, `bench_up.sh` takes about 4 minutes from a fresh sandbox and `scripts/ci/run_tests.sh` passes; MariaDB 10.11 triggers a version warning from `bench new-site` but works. CI on `main` is green.
 - Do:
   1. Make `scripts/dev/bench_up.sh` bring up a working Frappe 15 bench in the cloud sandbox: start MariaDB and Redis, `bench init --frappe-branch version-15`, create site `test_site`, install this app from the mounted repository, enable tests. The script must be idempotent and safe to re-run.
   2. If MariaDB cannot be installed or started in the sandbox, fall back to the pre-installed PostgreSQL for local runs only (`bench new-site --db-type postgres`), keep MariaDB in CI, and record the limitation in `docs/SANDBOX.md`.

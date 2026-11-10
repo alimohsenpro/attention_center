@@ -2,8 +2,8 @@
 # Bring up a Frappe 15 bench with this repository installed as a live (symlinked) app.
 # Intended for the cloud sandbox and for any Ubuntu machine. Safe to re-run.
 #
-# STATUS: written before it could be run in the cloud sandbox. Task M0-T1 owns making it work
-# there and recording what was needed in docs/SANDBOX.md.
+# Verified in the cloud sandbox by an operator smoke test on 2026-11-10 (about 4 minutes from
+# a fresh sandbox). Task M0-T1 records the details in docs/SANDBOX.md.
 set -euo pipefail
 
 : "${BENCH_DIR:=$HOME/frappe-bench}"
@@ -22,6 +22,9 @@ start_mariadb() {
   if db_ping; then return 0; fi
   if ! command -v mariadbd >/dev/null 2>&1 && ! command -v mysqld >/dev/null 2>&1; then
     log "installing MariaDB"
+    # Some sandboxes block plain-HTTP egress; the Ubuntu mirrors also serve HTTPS.
+    $SUDO sed -i -E 's#http://(archive|security)\.ubuntu\.com#https://\1.ubuntu.com#g' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
     $SUDO apt-get update -qq
     $SUDO apt-get install -y -qq mariadb-server mariadb-client libmariadb-dev pkg-config
   fi
@@ -46,8 +49,14 @@ install_bench() {
   fi
   if [ ! -d "$BENCH_DIR/apps/frappe" ]; then
     log "bench init ($FRAPPE_BRANCH)"
-    bench init --skip-redis-config-generation --skip-assets --no-backups \
-      --frappe-branch "$FRAPPE_BRANCH" "$BENCH_DIR"
+    # bench exits as root unless the config in the working directory names a frappe_user.
+    # A created bench records the invoking user, so only init needs this scratch config.
+    local init_cwd; init_cwd="$(mktemp -d)"
+    mkdir -p "$init_cwd/sites"
+    printf '{"frappe_user": "%s"}\n' "$(id -un)" > "$init_cwd/sites/common_site_config.json"
+    (cd "$init_cwd" && bench init --skip-redis-config-generation --skip-assets --no-backups \
+      --frappe-branch "$FRAPPE_BRANCH" "$BENCH_DIR")
+    rm -rf "$init_cwd"
   fi
 }
 
