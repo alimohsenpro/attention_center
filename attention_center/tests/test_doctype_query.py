@@ -165,6 +165,8 @@ class TestDocTypeQuery(FrappeTestCase):
 	def tearDownClass(cls):
 		frappe.db.rollback()
 		frappe.delete_doc("DocType", REQUEST, force=True)
+		# Frappe keeps the table of a deleted DocType; this test's table goes with it.
+		frappe.db.sql_ddl(f"drop table if exists `tab{REQUEST}`")
 		for role in (READER, OWN_READER):
 			frappe.delete_doc("Role", role, force=True)
 		frappe.db.commit()
@@ -402,7 +404,7 @@ class TestDocTypeQuery(FrappeTestCase):
 
 		with (
 			permission_query_conditions(REQUEST, f"{__name__}.slow_condition"),
-			patch.object(doctype_query, "QUERY_TIMEOUT_SECONDS", 0.2),
+			patch.object(doctype_query, "TIME_BUDGET_SECONDS", 0.2),
 			self.assertLogs(logger(), "ERROR") as logs,
 		):
 			started = time.monotonic()

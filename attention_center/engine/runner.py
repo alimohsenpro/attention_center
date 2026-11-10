@@ -13,11 +13,16 @@ import frappe
 from frappe.utils import cint
 
 from attention_center.engine import doctype_query
-from attention_center.engine.contract import ContractError, Item, normalize_count, normalize_items
+from attention_center.engine.contract import (
+	TIME_BUDGET_SECONDS,
+	ContractError,
+	Item,
+	normalize_count,
+	normalize_items,
+)
 
 SETTINGS = "Attention Center Settings"
 COUNT_CACHE = "attention_center:count:{}"
-SLOW_SECONDS = 2
 
 T = TypeVar("T")
 
@@ -89,7 +94,7 @@ def _run(source: frappe._dict, user: str, call: Callable[[], T]) -> T | None:
 		return None
 
 	elapsed_ms = _elapsed_ms(started)
-	if elapsed_ms > SLOW_SECONDS * 1000:
+	if elapsed_ms > TIME_BUDGET_SECONDS * 1000:
 		_logger().warning(f"source {source.key} was slow for {user}: {elapsed_ms} ms")
 	return result
 

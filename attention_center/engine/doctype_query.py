@@ -11,9 +11,14 @@ from frappe import _
 from frappe.database.database import get_query_execution_timeout
 from frappe.utils import cstr, today
 
-from attention_center.engine.contract import COUNT_CAP, PRIORITIES, is_overdue, parse_when
+from attention_center.engine.contract import (
+	COUNT_CAP,
+	PRIORITIES,
+	TIME_BUDGET_SECONDS,
+	is_overdue,
+	parse_when,
+)
 
-QUERY_TIMEOUT_SECONDS = 2
 # The count and the priority order cover the newest WINDOW rows (see DocTypeQuery.items).
 WINDOW = COUNT_CAP + 1
 PLACEHOLDER_PATTERN = re.compile(r"\{(user|today)\}")
@@ -115,7 +120,7 @@ class DocTypeQuery:
 
 	def rows(self, *fieldnames: str | None, start: int, limit: int) -> list[frappe._dict]:
 		columns = dict.fromkeys(fieldname for fieldname in ("name", *fieldnames) if fieldname)
-		with statement_timeout(QUERY_TIMEOUT_SECONDS):
+		with statement_timeout(TIME_BUDGET_SECONDS):
 			return frappe.get_list(
 				self.source.reference_doctype,
 				filters=self.filters,

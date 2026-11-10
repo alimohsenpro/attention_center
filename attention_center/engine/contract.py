@@ -27,6 +27,8 @@ REQUIRED_FIELD_ROLES = ("title", "date")
 TITLE_MAX_LENGTH = 200
 # Counts are capped so that every source costs one query of at most COUNT_CAP + 1 rows (T-07).
 COUNT_CAP = 99
+# A source taking longer is logged as slow; a declarative query taking longer is stopped [NFR-PERF-03].
+TIME_BUDGET_SECONDS = 2
 COUNTERS = ("urgent", "immediate", "overdue", "new_since")
 
 COMMON_KEYS = frozenset(("key", "contract_version", "label", "kind", "type", "icon", "list_route"))
