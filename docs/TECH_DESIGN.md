@@ -358,7 +358,7 @@ framework. Everything renders into one host element with an open shadow root.
 ```
 public/js/attention_center/
   index.js            boot: guards, host element, launcher, wiring       (launcher bundle)
-  store.js            tiny observable state {summary, prefs, ui}
+  store.js            tiny observable state {summary, prefs, ui}; summary refresh, one request at a time
   api.js              server calls over fetch (no core dialogs), request de-duplication
   realtime.js         nudge listener, visibility/reconnect/heartbeat refresh
   alerts/policy.js    PURE: (prevSummary, nextSummary, prefs, now, actor) -> alert decisions
@@ -411,11 +411,33 @@ tests/js/             node --test unit tests for the PURE modules and coordinati
 
 ### 7.3 Refresh loop [FR-RT-02]
 
-`realtime.js` triggers `store.refreshSummary()` (debounced 1.5 s, de-duplicated) on:
-`frappe.realtime.on("attention_center_nudge")` (plus 0–5 s jitter when `broadcast`),
-`visibilitychange` → visible, socket `connect`/`reconnect`, `window` `online`, and a heartbeat
-every `heartbeat_seconds` while the document is visible. The first fetch happens after boot, not
-during it.
+- `realtime.js` (`startRefreshLoop`) triggers `store.refreshSummary(actor)` on:
+  `frappe.realtime.on("attention_center_nudge")` (after a random 0–5 s wait when `broadcast`),
+  `visibilitychange` → visible, the socket's `connect`, `window` `online`, and a heartbeat every
+  `heartbeat_seconds` while the document is visible. socket.io 4 (4.8 in Frappe 15) emits `connect` on
+  the socket after every reconnection too; its `reconnect` event belongs to the socket's manager, which
+  `frappe.realtime.on` does not reach.
+- Debounce: a burst of triggers is sent as one request once 1.5 s pass without another, or 5 s after its
+  first trigger, so a steady stream of nudges still refreshes. A broadcast received while an earlier
+  one's random wait is pending starts no second wait: the refresh after that wait covers it.
+- A hidden tab sends no heartbeat but still follows nudges, so that its alerts can play (§7.5); becoming
+  visible refreshes and starts the heartbeat again. The first fetch is the loop's first trigger, 1.5 s
+  after `app_ready`: the boot never waits on it, and a socket that connects meanwhile joins it.
+- `store.refreshSummary(actor)` sends one request at a time. A call while one is on its way sends no
+  second request but asks for one more after it, shared by every call made meanwhile, because the
+  change that prompted it may have been committed after the server read the counts. Its promise
+  settles once that summary is stored or its request failed; a failed request does not reject it.
+  The window's own refreshes (after `mark_seen`, "Try again") go through it too.
+- The alert layer reads each stored summary through `store.onSummary(({previous, summary, actor}) =>
+  …)`, `previous` being null for the first one of the page load. `actor` is the user named by the
+  nudges a request answers when they all name the same one, and null otherwise: the heartbeat,
+  visibility, reconnection, `online`, broadcasts and the window's refreshes name none, so
+  self-suppression (§7.4) applies only when the user's own change is the only known cause. A request
+  the loop sends while a broadcast waits out its random delay names none either: it already carries
+  that broadcast's change. One limit remains, because the loop does not know when a request is sent
+  or answered: a colleague's change whose nudge arrives while a request naming the user is on its way,
+  or queued behind another, can reach the alert layer with the user as `actor`. The window lasts about
+  one request, not the up to 5 s of a broadcast's wait.
 
 ### 7.4 Alerts [FR-ALERT-01..06]
 
