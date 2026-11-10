@@ -44,26 +44,26 @@ bash scripts/ci/run_tests.sh         # everything CI runs
 
 ## Measured durations from a cold sandbox
 
-Run 1 was the first command of a fresh session (script as on `main`, timed by a wrapper).
-Run 2 used the final script in the same sandbox after removing MariaDB (packages, data,
+Run 1 was started in a fresh session (script as on `main`, timed by a wrapper). Runs 2 and 3
+used this task's script in the same sandbox after removing MariaDB (packages, data,
 `/etc/mysql`), the apt lists and cache, the Redis processes, the bench CLI, `~/frappe-bench`
 and the uv, yarn and pip caches, and after restoring the `http://` apt sources. Only the bench
-CLI's own dependencies stayed installed.
+CLI's own dependencies stayed installed. Each run ended with a passing `run_tests.sh`.
 
-| Step | Run 1 | Run 2 |
-|---|---|---|
-| Install MariaDB 10.11 from Ubuntu over HTTPS (`apt-get update` + `install`) | 225 s (of which dpkg 11 s) | 60 s |
-| Start MariaDB, set root password and utf8mb4 | 1 s | 1 s |
-| Install the bench CLI (`pip install frappe-bench`) | 7 s | 2 s |
-| `bench init --frappe-branch version-15` | 297 s: venv 2 s, shallow clone 1 s, `uv pip install` of Frappe 279 s, `yarn install` 15 s | 81 s |
-| Link the repository, `pip install -e` | 8 s | 3 s |
-| `bench new-site test_site` | 19 s | 19 s |
-| `install-app`, `set-config allow_tests`, `migrate` | 4 s | 4 s |
-| `bench build --app frappe` | not in that script; 12 s when run alone | 11 s |
-| **Total** | **561 s (9 min 21 s)** + 12 s build | **181 s (3 min 1 s)** |
+| Step | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| Install MariaDB 10.11 from Ubuntu over HTTPS (`apt-get update` + `install`) | 225 s (of which dpkg 11 s) | 60 s | 170 s |
+| Start MariaDB, set root password and utf8mb4 | 1 s | 1 s | 2 s |
+| Install the bench CLI (`pip install frappe-bench`) | 7 s | 2 s | 1 s |
+| `bench init --frappe-branch version-15` | 297 s: venv 2 s, shallow clone 1 s, `uv pip install` of Frappe 279 s, `yarn install` 15 s | 81 s | 189 s |
+| Link the repository, `pip install -e` | 8 s | 3 s | 2 s |
+| `bench new-site test_site` | 19 s | 19 s | 19 s |
+| `install-app`, `set-config allow_tests`, `migrate` | 4 s | 4 s | 5 s |
+| `bench build --app frappe` | not in that script; 12 s when run alone | 11 s | 12 s |
+| **Total** | **561 s (9 min 21 s)** + 12 s build | **181 s (3 min 1 s)** | **400 s (6 min 40 s)** |
 
-Downloads dominate and their speed varies between runs (the operator's run took about 4 minutes;
-run 2 used 67 s user and 30 s system CPU over 181 s). Other measurements:
+Downloads dominate and their speed varies from run to run (the operator's run took about
+4 minutes; run 3 used 69 s user and 19 s system CPU over 400 s). Other measurements:
 
 | Action | Duration |
 |---|---|
