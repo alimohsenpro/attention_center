@@ -63,3 +63,5 @@ Add one line per decision: `YYYY-MM-DD — task — decision — why`.
 - 2026-11-10 — M1-T2 — an item with an invalid optional value (priority, colour, label, date) is kept with the default; only id, title and route are required — dropping it would hide work the user can still open.
 - 2026-11-10 — M1-T2 — a `due` date without a time is overdue from the next day on — a task due today is not late yet.
 - 2026-11-10 — M1-T2 — rejected hook entries are logged at ERROR, dropped items at WARNING as §4.3 says — Frappe's default production log level is ERROR, so a warning about a skipped source would never reach the operator.
+- 2026-11-10 — M1-T2 — a hook entry whose filters or priority map hold a value JSON cannot store (a `date`, a `set`) is rejected, not converted — the stored definition is JSON, and a guessed conversion (date format, set order) could change what the query matches; rejection logs and skips it like any other bad entry.
+- 2026-11-10 — M1-T2 — `ContractError` messages are written to the log only and are not translated — they address the developer of the declaring app; a later task that shows one to a user must wrap it with `_()` first.
