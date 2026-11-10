@@ -1,6 +1,3 @@
-# Frappe does not read imported modules as hooks, so only `attention_sources` below comes from this import.
-from attention_center.sources import builtin
-
 app_name = "attention_center"
 app_title = "Attention Center"
 app_publisher = "Attention Center Contributors"
@@ -95,7 +92,7 @@ fixtures = [{"dt": "Role", "filters": [["name", "=", "Attention Manager"]]}]
 # -----------------
 # The built-in sources, declared through the same hook as any consumer app's
 
-attention_sources = builtin.SOURCES
+from attention_center.sources.builtin import SOURCES as attention_sources
 
 # Uninstallation
 # ------------
