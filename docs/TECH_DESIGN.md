@@ -370,14 +370,19 @@ public/js/attention_center/
   ui/icons.js         inline SVG icons used by the UI
   ui/launcher.js  ui/toast.js
   ui/window.js  ui/tabs.js  ui/table.js  ui/settings.js   (window bundle, lazy)
-  util/dom.js  util/time.js  util/escape.js
-tests/js/             node --test unit tests for the PURE modules and coordination logic
+  util/guard.js       PURE: the guard every entry point runs through (§7.1)
+  util/badge.js       PURE: summary -> launcher count text ("99+"), attention accent, unseen dot
+  util/title.js       "(N) " tab-title counter: PURE retitle + a <title> observer
+  util/route.js  util/escape.js   PURE: desk-route validation, HTML escaping
+  util/dom.js  util/time.js
+tests/js/             node --test unit tests for the PURE modules and coordination logic; the root
+                      package.json only declares "type": "module" so that Node loads the client modules
 ```
 
 ### 7.1 Boot and isolation [FR-UI-05, NFR-REL-01]
 
-- `attention_center.bundle.js` is listed in `app_include_js`. On `$(document).on("app_ready")` (or immediately if the desk is already up) it checks `frappe.boot.attention_center?.enabled` and `frappe.session.user !== "Guest"`, then creates `<div id="attention-center-root">` on `document.body`, attaches `mode: "open"` shadow root, and adopts the stylesheet (`CSSStyleSheet` + `adoptedStyleSheets`, falling back to a `<style>` element).
-- The whole boot is inside `try { … } catch (e) { console.error("[attention_center]", e); }`. Event handlers and timers are wrapped by one `safe(fn)` helper.
+- `attention_center.bundle.js` is listed in `app_include_js`. On `$(document).on("app_ready")` (or immediately if the desk is already up) it checks `frappe.boot.attention_center?.enabled` and `frappe.session.user !== "Guest"`, then creates `<div id="attention-center-root">` on `document.body`, attaches `mode: "open"` shadow root, and adopts the stylesheet (`CSSStyleSheet` + `adoptedStyleSheets`, falling back to a `<style>` element). The sheet resets the host with `:host { all: initial !important }`, so page CSS cannot give it a box, and declares the tokens as custom properties on `:host`, which page CSS can still override.
+- The boot and every event handler, observer and timer run through one guard (`util/guard.js`, `run(fn)` / `safe(fn)`): the first exception or rejected promise is logged with `console.error("[attention_center]", e)`, runs the registered cleanups (host removed, observers disconnected, title counter removed) and turns the client off for the page load. A failed request is not a failure of the client: the launcher keeps what it shows. Requests use `frappe.call` with `silent: true`, so a background request never opens a message.
 - CSS uses logical properties only (`inset-inline-end`, `margin-inline-start`, …) so the same sheet serves RTL and LTR. The root element copies `dir` and `lang` from `document.documentElement` and observes `data-theme` for dark mode. Fonts inherit from the page.
 - Icons are inline SVG from `ui/icons.js` (Frappe's sprite `<use>` references do not resolve inside a shadow tree).
 - z-index: launcher and toasts 1020; our dialog overlay 1030 — below Bootstrap/Frappe modals (1040/1050) so system dialogs always win [FR-UI-01 AC1].
@@ -389,7 +394,8 @@ tests/js/             node --test unit tests for the PURE modules and coordinati
 - Navigation: `frappe.set_route` for `/app/...` routes after closing the window. Routes are validated to start with `/app/`; anything else is ignored.
 - Keyboard: `Alt+Shift+A` toggles the window (register through `frappe.ui.keys.add_shortcut` when available); `Esc` closes; roving tabindex on tabs; rows are focusable with an explicit "Open" button.
 - Live region (`aria-live="polite"`) in the shadow root announces alerts. `prefers-reduced-motion` disables the pulse and slide animations.
-- Title counter: prefix `document.title` with `(N) ` and keep it in place across route changes (Frappe rewrites the title on navigation: re-apply on `frappe.router.on("change")` and via a `MutationObserver` on `<title>`).
+- Launcher: a pill button (bell, label, count) with a small collapse toggle on its inline-start side; collapsed, it is a 44 px circle with the count as a badge. Its accessible name states the count and the unseen info. Collapsing applies at once and is stored through `set_preferences`; preference writes are sent one after the other, so the stored value is the last click.
+- Title counter: prefix `document.title` with the launcher's count text, `(N) ` or `(99+) `, and keep it in place across route changes: Frappe rewrites the title on navigation, and a `MutationObserver` on `<title>` re-applies the prefix after every rewrite. Only the prefix the app wrote is removed, so a page title that starts with a number in brackets stays intact.
 
 ### 7.3 Refresh loop [FR-RT-02]
 
@@ -441,7 +447,7 @@ client utilities so they follow the user's locale.
 ## 10. Test strategy [NFR-MAINT-01]
 
 - **Backend** (`bench --site <site> run-tests --app attention_center`): `FrappeTestCase` from `frappe.tests.utils` (Frappe 15). Each test creates its own users/roles/documents and cleans up via rollback. Mandatory coverage: source-definition validation; declarative executor (placeholders, mapping, caps, ordering); permission filtering with role permissions, a User Permission, and a `permission_query_conditions` fixture DocType created in the test; approvals with "role but no read permission"; targeting narrowing; fault isolation (a raising python source); cache TTL and invalidation; recipients and single nudge per request (`frappe.publish_realtime` patched); API input validation and "cannot read another user's data"; preferences validation; translation completeness.
-- **Client pure logic**: `node --test tests/js` for policy, coalescing, tab coordination (fake channel/storage/clock), reminder scheduling, escaping and route validation. No browser needed.
+- **Client pure logic**: `node --test tests/js/*.test.js` (Node 22 no longer takes a directory argument) for policy, coalescing, tab coordination (fake channel/storage/clock), reminder scheduling, escaping and route validation. No browser needed.
 - **UI smoke** (from M6): Playwright against the sandbox/CI site: launcher renders, window opens in three modes, RTL/LTR screenshots, keyboard open/close. Kept small.
 - Tests must be able to fail: no assertion-free tests, no mocking of the unit under test, no reliance on old data in the site.
 - `scripts/ci/run_tests.sh` is the single entry point used by CI and by agents locally.
