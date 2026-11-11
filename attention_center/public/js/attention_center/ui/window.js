@@ -119,9 +119,8 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 				if (state.ui.open) show();
 				else hide();
 			} else if (state.ui.open && state.ui !== previousState.ui) {
-				// Asked to open while open, as from a toast: show the tab it names.
-				select(state.ui.tab ?? ALL_TAB);
-				tabs.focusSelected();
+				// Asked to open while open, as from a toast's "View": the user asks for what arrived.
+				showTab(state.ui.tab);
 			} else if (state.ui.open && state.summary !== previousState.summary) {
 				onSummary();
 			}
@@ -131,16 +130,22 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	function show() {
 		opener = root.activeElement ?? document.activeElement;
 		restoreFocus = true;
-		selected = store.get().ui.tab ?? ALL_TAB;
+		frame.hidden = false;
+		showTab(store.get().ui.tab);
+		refresh();
+	}
+
+	// Shows a tab ("All" for null) from its first page with items fetched afresh, and marks its sources seen
+	// again: the pages and seen marks of this opening may predate what the user now asks to see.
+	function showTab(id) {
+		selected = id ?? ALL_TAB;
 		page = 0;
 		loading = false;
 		feeds = new Map();
 		seen = new Set();
-		frame.hidden = false;
 		renderTabs();
 		tabs.focusSelected();
 		load();
-		refresh();
 	}
 
 	function hide() {
