@@ -18,9 +18,11 @@ All notable changes to Attention Center. The format follows
   announcements a user receives; "Open" shows one in the window with its body and an Acknowledge
   button. The All tab lists the announcements awaiting acknowledgement. Immediate announcements raise
   a toast that stays until closed, also when the desk is opened after they were published, until the
-  Announcements tab was viewed; a new announcement shows the launcher's dot. Managers see who acknowledged and who has not in the report
-  "Announcement Acknowledgements", with Frappe's export, from a button on the announcement's form or
-  from the workspace. Endpoints `get_announcement` and `get_announcements_to_acknowledge`.
+  Announcements tab was viewed or the announcement acknowledged; a new announcement shows the
+  launcher's dot. An announcement the user acknowledged or wrote is not new to them. Managers see who
+  acknowledged and who has not in the report "Announcement Acknowledgements", with Frappe's export,
+  from a button on the announcement's form or from the workspace. Endpoints `get_announcement`,
+  `get_announcements_to_acknowledge` and `get_unseen_announcements`.
 
 ## 0.1.0 — 2026-11-11
 
