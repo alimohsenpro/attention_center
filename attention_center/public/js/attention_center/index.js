@@ -319,8 +319,8 @@ function alertOnNewItems(store, { api, launcher, toasts, sound, coalesceSeconds 
 	};
 }
 
-// The sticky toast of immediate announcements the user has not seen since the page loaded (§7.4), without a tone: it
-// tells of no arrival, and would sound again at every page load until the user opens the Announcements tab.
+// The sticky toast, raised when the page loads, of the announcements the user has not seen yet when an immediate one
+// is among them (§7.4). No tone: it tells of no arrival, and would sound at every page load until the user looks.
 function showUnseenAnnouncements(store, toasts, count) {
 	const label = store
 		.get()
