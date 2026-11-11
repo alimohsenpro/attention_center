@@ -97,7 +97,7 @@ export function createWindow(
 		muted,
 		preview: previewTone,
 		onBack: () => {
-			showItems();
+			closeSettings();
 			tabs.focusSelected();
 		},
 		safe,
@@ -121,7 +121,7 @@ export function createWindow(
 
 	settingsButton.addEventListener(
 		"click",
-		safe(() => (settings.shown ? showItems() : showSettings()))
+		safe(() => (settings.shown ? closeSettings() : toggleSettings(true)))
 	);
 	modeButton.addEventListener("click", safe(switchMode));
 	closeButton.addEventListener("click", safe(close));
@@ -238,13 +238,9 @@ export function createWindow(
 		editor.change({ display_mode: nextDisplayMode(mode) });
 	}
 
-	function showSettings() {
-		toggleSettings(true);
-	}
-
 	// Back from the settings to the items: the page is drawn again, from the pages already fetched, and marks its
 	// sources seen if it was answered while the settings showed.
-	function showItems() {
+	function closeSettings() {
 		toggleSettings(false);
 		load();
 	}
@@ -395,7 +391,7 @@ export function createWindow(
 			showError(__("These items could not be loaded."), retry);
 			return;
 		}
-		// Behind the settings view the items are not seen yet; showItems draws them again.
+		// Behind the settings view the items are not seen yet; closeSettings draws them again.
 		if (!itemsView.hidden) markSeen(tab.sources.filter((key) => !failed.includes(key)));
 		keepingFocus(() => {
 			panel.removeAttribute("aria-busy");

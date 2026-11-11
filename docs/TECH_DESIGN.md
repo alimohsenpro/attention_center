@@ -379,8 +379,10 @@ public/js/attention_center/
   util/badge.js       PURE: summary -> launcher count text ("99+"), attention accent, unseen dot
   util/title.js       "(N) " tab-title counter: PURE retitle + a <title> observer
   util/route.js  util/escape.js   PURE: desk-route validation and set_route arguments, HTML escaping
-  util/dom.js         stylesheet adoption into the shadow root
-  util/time.js
+  util/dom.js         stylesheet adoption into the shadow root, element and button helpers
+  util/time.js        PURE: Do Not Disturb times ("for 1 hour", "until the end of the day") on naive time text
+  util/settings.js    PURE: a settings change applied at once and stored, with its saving / saved / failed state
+  util/share_prefs.js the preferences kept in step across the user's tabs (BroadcastChannel)
 tests/js/             node --test unit tests for the PURE modules and coordination logic; the root
                       package.json only declares "type": "module" so that Node loads the client modules
 ```
@@ -455,12 +457,51 @@ tests/js/             node --test unit tests for the PURE modules and coordinati
 - Mute sources, in order: `frappe.boot.user.mute_sounds`, DND active, scope rules. The engine checks the first two before every sound, whatever its role, so the urgent, immediate and reminder tones, which play at every scope, are silenced too [FR-SND-02 AC1]. The alert policy applies DND and the scope as well (§7.4), so a burst never counts a silenced sound as played.
 - Locked audio [FR-SND-03]: a `play()` rejected with `NotAllowedError` locks the tab. The launcher pulses; the first time in the page load a hint toast explains it (no "View", no timer, so a user who was away still finds it); capture-phase `pointerup` and `keydown` listeners on `window` unlock the tab at the next gesture by playing a muted tone, after which the hint goes and sounds play again without a reload. `pointerup` rather than `pointerdown`: a touch grants the permission only when it ends. A locked tab claims no alert (below), so another tab can play it. A gesture the browser does not count (Escape) unlocks nothing: a browser that refuses the muted tone too until a counted gesture (Chromium) keeps the tab locked and waits for the next gesture; one that plays muted tones at any time unlocks the tab, refuses the next sound and so locks it again, without a second hint. A hint the toast stack has no room for (three immediate toasts) is not tried again: those toasts leave only by a click or a key, which unlocks the sound. Other refusals (a file that does not load) are ignored.
 - Cross-tab single playback (`alerts/tabs.js`) [FR-SND-04]: a sound gets an id from the summary that raised it (`alertId`): the key, `count` and `latest` of each source whose alert sounds. Tabs fetch the same summary for a change, so they compute the same id even when they fetch it seconds apart (a broadcast's random wait, §6), where a bucket of the clock would split them at its edge. Claims go by a key, the FNV-1a hash of the id, so that `localStorage`, which outlives the session and may be read by the next user of the browser, names no source and no count. A tab that finds the key claimed (a live `attention_center:claim:<key>` in `localStorage`, or a `{claim: key}` message heard on `BroadcastChannel("attention_center")`, which can arrive before the write does) leaves it. Otherwise it claims it: at once when visible, after 120 ms + random 0–80 ms when hidden (checking again first), so that visible tabs win. A tab that has not shown that the browser lets it play, with no gesture the browser counts since the page loaded (`navigator.userActivation.hasBeenActive`) and no sound played, waits 2.5 s more, so that a tab that has, even a hidden one, claims first: a tab opened in the background or reloaded, and not clicked yet, would otherwise win and be refused, and the alert would play in no tab. The browser runs a hidden tab's timers up to about a second late, both the refresh that fetches the change there and the claim's delay, hence 2.5 s. Among the tabs of each kind visible ones still win. Claiming writes `attention_center:claim:<key>` = `{tab, at}` with the tab's random id and posts `{claim: key}`; 120 ms later the tab plays only if the stored claim is its own, so of two tabs that wrote at the same moment the later write stands in both and one plays. A tab whose sound the browser then refuses gives the claim back: it removes its stored claim and posts `{release: key}`, so that a tab that fetches the change later plays it. When `localStorage` refuses the write (full, or disabled) the tab plays anyway: the posted claim still keeps the tabs that check after it silent, and a sound in two tabs is better than in none, or than a storage error stopping the client. Claims older than 30 s are ignored and removed at the next write. No Web Locks, no service worker, no Notification API, no `crypto.randomUUID`: the production origin is plain HTTP [NFR-COMP-02].
+- `sound.preview(id)` plays a tone once for the settings view (§7.6): in the tab that asks, without a claim, at the user's volume, and not at all under `mute_sounds`, Do Not Disturb or volume 0. It follows a click, so a refusal is ignored and locks nothing.
 - The client hands every summary's alerts to the engine in one call, `sound.alert(role, id)`, `role` being the tone role coalescing returned (§7.4) or null when the tab's burst already sounded. With a null role nothing plays, and the id is marked as claimed, so that a tab that fetches the same change later (after a longer broadcast wait, in one summary) stays silent, but only when the tab's burst was heard: played in this tab or claimed by another. A tab whose burst was silent (`mute_sounds`, Do Not Disturb, volume 0, locked, or refused by the browser) marks nothing, even when a gesture unlocked it since, so another tab plays the burst.
 - Limits: tabs whose summaries split a burst differently compute different ids and may each play once. A tab that has not shown it can play still claims when no tab that has claims within its 2.5 s (it fetched the change sooner, after a broadcast's random wait); refused, it gives the claim back, and the sound is lost only for a tab that checked in the moment before (the hint shows in the refused tab). Alone, such a tab shows the hint, or plays its first sound when the browser allows it, 2.5 s after the toast. Claims live 30 s, so a tab that missed the nudges (its socket gave up, T-05) and refreshes minutes later, when it becomes visible, plays again for items another tab sounded; a longer life would instead silence an item that leaves the user's queue and comes back with the same count and latest date (sent back and resubmitted), which is the worse failure. Within those 30 s, a source whose count and latest date return to the same values gets the same id, and its second alert is silent.
 
-### 7.6 Settings UI [FR-SET-02, FR-UI-03]
+### 7.6 Settings UI [FR-SND-02, FR-SET-02, FR-UI-03]
 
-A settings view inside the window edits the user's preferences through `set_preferences`.
+A settings view inside the window (`ui/settings.js`, window bundle) edits the user's preferences
+through `set_preferences`. A settings button in the window's header (`aria-pressed`, before the
+mode button) shows it in place of the tabs and their panel, and shows the items again when pressed
+again; "Back to the list" does the same and focuses the selected tab. The window opens on the
+items every time, and a toast's "View" shows the items too. Items answered while the settings
+show are not marked seen; going back draws the page again from the pages already fetched, which
+marks them.
+
+- Controls: sound scope (three radio buttons), standard tone (a select of the boot's `standard`
+  tones) with "Preview", volume (a range 0–100, applied and stored when the user lets go), Do Not
+  Disturb (off / for 1 hour / until the end of the day), auto-open after login (a checkbox) and
+  display mode (three radio buttons). There is no control for the launcher's counter or for the marks
+  of urgent, immediate and overdue items: no preference exists for them (D-06); the view says so in
+  one line. Each control shows the effective preference from the store and redraws when the store's
+  preferences change, from another tab included. The view writes explicit values: the effective
+  preferences do not say which values are inherited, so it offers no "use the default" choice, and a
+  preference the user never changes keeps following the settings' default.
+- Changes (`util/settings.js`, `createPreferenceEditor`): a change replaces the store's
+  preferences at once, so the sound engine, the alert policy and the window follow it, and is sent
+  through `api.setPreferences` (one write after the other). Only values that differ are sent;
+  auto-open is sent as `Yes`/`No`. The view shows "Saving…", "Saved", or "Your change could not
+  be saved." with "Try again", which sends the preferences whose last write failed with their current
+  values. A failed change keeps applying in the page load. The header's mode button goes through the
+  same editor.
+- Do Not Disturb (`util/time.js`): chosen in the user's time zone (`frappe.datetime.now_datetime`),
+  "for 1 hour" ends an hour later and "until the end of the day" at the user's next midnight; the end
+  is converted to the system time zone (`convert_to_system_tz`) before it is stored and compared,
+  like every time of §7.4. The shown choice is derived from `dnd_until`: off once it has passed,
+  "until the end of the day" when it ends at the user's next midnight, else "for 1 hour" with its end
+  time ("Sounds are off until 15:30. Alerts still show."). The view redraws when it ends.
+- Preview: `sound.preview(id)` (§7.5) plays the selected tone once at the user's volume in this tab,
+  without a claim. `mute_sounds`, Do Not Disturb and volume 0 keep it silent like every sound
+  [FR-SND-02 AC1], so the button is disabled then, and a note says when `mute_sounds` is set.
+- Other tabs (`util/share_prefs.js`): every change of the store's preferences that did not come from
+  the channel is posted on `BroadcastChannel("attention_center")` as `{prefs, user}`; the user's
+  other tabs replace their preferences with it, so Do Not Disturb set in one tab silences an alert
+  another tab would play. A tab of another user ignores it. The launcher's collapse travels the same
+  way.
+
 Admin configuration uses the standard desk forms of the two DocTypes plus a small form script
 for `Attention Source` (field visibility by type, "Test for my user").
 

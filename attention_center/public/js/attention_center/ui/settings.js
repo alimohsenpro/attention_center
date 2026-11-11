@@ -28,8 +28,6 @@ export function createSettings(
 
 	const top = element("div", "settings-top");
 	const title = element("h3", "settings-title", __("Your settings"));
-	// Focused when the view opens, so that a screen reader announces it; Tab then reaches the controls.
-	title.tabIndex = -1;
 	const back = textButton(__("Back to the list"), "link-button");
 	back.addEventListener("click", safe(onBack));
 	top.append(title, back);
@@ -190,7 +188,7 @@ export function createSettings(
 		volume.setAttribute("aria-valuetext", text);
 	}
 
-	// The state of the writes (util/settings.js). Focus on "Try again", which goes away, moves to the title.
+	// The state of the writes (util/settings.js). Focus on "Try again", which goes away, moves to "Back to the list".
 	function showStatus(state) {
 		const hadFocus = status.contains(parent.getRootNode().activeElement);
 		status.replaceChildren();
@@ -206,7 +204,7 @@ export function createSettings(
 			status.append(element("span", null, message), retry);
 			announce(message);
 		}
-		if (hadFocus && !view.hidden) title.focus();
+		if (hadFocus && !view.hidden) back.focus();
 	}
 
 	function radioGroup(name, legend, choices, onChoose) {
@@ -241,7 +239,6 @@ export function createSettings(
 		show() {
 			render();
 			view.hidden = false;
-			title.focus();
 		},
 		hide() {
 			view.hidden = true;

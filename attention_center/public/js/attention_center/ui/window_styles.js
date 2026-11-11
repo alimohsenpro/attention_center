@@ -213,10 +213,6 @@ export const WINDOW_STYLES = `
 	font-weight: 700;
 }
 
-.settings-title:focus {
-	outline: none;
-}
-
 .settings-status {
 	display: flex;
 	flex-wrap: wrap;
