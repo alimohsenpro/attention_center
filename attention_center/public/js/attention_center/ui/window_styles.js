@@ -175,6 +175,162 @@ export const WINDOW_STYLES = `
 	transform: scaleX(-1);
 }
 
+.icon-button[aria-pressed="true"] {
+	background: rgba(255, 255, 255, 0.18);
+	color: #ffffff;
+}
+
+/* The tabs and their panel keep the window's column layout; the settings view takes their place. */
+.items-view {
+	display: contents;
+}
+
+/* The settings view [FR-SET-02]. */
+.settings {
+	flex: 1;
+	min-block-size: 0;
+	overflow: auto;
+	padding-block: 16px 24px;
+	padding-inline: 24px;
+}
+
+/* Native controls follow the desk's theme, not the OS setting. */
+:host([data-theme="dark"]) .settings {
+	color-scheme: dark;
+}
+
+.settings-top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 4px 12px;
+}
+
+.settings-title {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 700;
+}
+
+.settings-status {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	min-block-size: 20px;
+	margin: 0;
+	color: var(--ac-muted);
+	font-size: 12px;
+}
+
+.settings-group {
+	margin-block-start: 12px;
+	padding-block-start: 12px;
+	border-block-start: 1px solid var(--ac-border);
+}
+
+.settings-heading {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.settings-field {
+	min-inline-size: 0;
+	margin: 0;
+	margin-block-start: 12px;
+	padding: 0;
+	border: 0;
+}
+
+.settings-label {
+	display: block;
+	margin-block-end: 4px;
+	padding: 0;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.choice {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-block: 4px;
+	cursor: pointer;
+}
+
+.choice input {
+	flex: none;
+	inline-size: 16px;
+	block-size: 16px;
+	margin: 0;
+	accent-color: var(--ac-link);
+	cursor: pointer;
+}
+
+.settings-row {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+}
+
+.settings-select {
+	min-inline-size: 160px;
+	padding-block: 4px;
+	padding-inline: 8px;
+	border: 1px solid var(--ac-border);
+	border-radius: var(--ac-radius-sm);
+	background: var(--ac-surface);
+	color: var(--ac-ink);
+	font: inherit;
+	font-size: 13px;
+}
+
+.preview-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.preview-button svg {
+	inline-size: 16px;
+	block-size: 16px;
+}
+
+/* The speaker faces the inline start in left-to-right text, its waves the inline end. */
+:host([dir="rtl"]) .preview-button svg {
+	transform: scaleX(-1);
+}
+
+.settings-range {
+	flex: 1;
+	max-inline-size: 260px;
+	margin: 0;
+	accent-color: var(--ac-link);
+}
+
+.settings-output {
+	min-inline-size: 40px;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+.hint {
+	margin-block: 4px 0;
+	color: var(--ac-muted);
+	font-size: 12px;
+}
+
+.settings-note {
+	margin-block: 12px 0;
+	padding-block: 8px;
+	padding-inline: 12px;
+	border-radius: var(--ac-radius-sm);
+	background: var(--ac-surface-2);
+	font-size: 13px;
+}
+
 /* The tab strip keeps its height when the window is short; the items scroll instead. */
 .tabs {
 	display: flex;
@@ -532,7 +688,8 @@ tr[data-overdue] time {
 		padding-inline: 16px 8px;
 	}
 
-	.summary-strip {
+	.summary-strip,
+	.settings {
 		padding-inline: 16px;
 	}
 

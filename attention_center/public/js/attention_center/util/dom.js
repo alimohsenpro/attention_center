@@ -18,3 +18,9 @@ export function element(tag, className, text) {
 	if (text) node.textContent = text;
 	return node;
 }
+
+export function textButton(label, className = "pager-button") {
+	const button = element("button", className, label);
+	button.type = "button";
+	return button;
+}

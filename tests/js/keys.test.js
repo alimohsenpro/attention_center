@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+	keepsKey,
 	roveIndex,
 	trapIndex,
 } from "../../attention_center/public/js/attention_center/util/keys.js";
@@ -60,3 +61,32 @@ test("with a single focusable element Tab and Shift+Tab keep focus on it", () =>
 	assert.equal(trapIndex(0, 1, false), 0);
 	assert.equal(trapIndex(0, 1, true), 0);
 });
+
+// [key as KeyboardEvent.key names it, whether the window keeps it from the desk].
+const KEPT_CASES = [
+	["Escape", true],
+	["ArrowUp", true],
+	["ArrowDown", true],
+	["ArrowLeft", true],
+	["ArrowRight", true],
+	["Home", true],
+	["End", true],
+	["PageUp", true],
+	["PageDown", true],
+	["Tab", false],
+	["Enter", false],
+	[" ", false],
+	// The window's own shortcut (Alt+Shift+A) and the desk's (Ctrl+S, Ctrl+G) are handled on `window`.
+	["A", false],
+	["a", false],
+	["s", false],
+	["g", false],
+	["Alt", false],
+	["Shift", false],
+];
+
+for (const [key, kept] of KEPT_CASES) {
+	test(`the window ${kept ? "keeps" : "lets the desk have"} "${key}"`, () => {
+		assert.equal(keepsKey(key), kept);
+	});
+}

@@ -50,17 +50,25 @@ export function createSound({
 	// Whether the last sound of the tab's burst was heard: played here, or claimed by another tab, which plays it.
 	let burstHeard = false;
 
-	function player(role, prefs) {
-		const id = {
+	function toneOf(role, prefs) {
+		return {
 			standard: prefs.tone,
 			urgent: settings.urgent_tone,
 			immediate: settings.immediate_tone,
 			reminder: settings.reminder_tone,
 		}[role];
+	}
+
+	function player(id) {
 		if (!players.has(id)) {
 			players.set(id, createAudio(tones.find((tone) => tone.id === id).url));
 		}
 		return players.get(id);
+	}
+
+	// User.mute_sounds and Do Not Disturb silence every sound, whatever its role [FR-SND-02 AC1].
+	function silenced(prefs) {
+		return muted || dndActive(prefs.dnd_until, now());
 	}
 
 	function listen() {
@@ -82,7 +90,7 @@ export function createSound({
 		for (const type of UNLOCK_EVENTS) {
 			page.removeEventListener(type, unlock, { capture: true });
 		}
-		const audio = player("standard", getPrefs());
+		const audio = player(toneOf("standard", getPrefs()));
 		audio.muted = true;
 		return audio.play().then(
 			() => {
@@ -111,15 +119,10 @@ export function createSound({
 			return;
 		}
 		const prefs = getPrefs();
-		burstHeard =
-			!muted && !dndActive(prefs.dnd_until, now()) && Boolean(prefs.volume) && !locked;
+		burstHeard = !silenced(prefs) && Boolean(prefs.volume) && !locked;
 		if (!burstHeard || !(await claim(id, proven()))) return;
-		const audio = player(role, prefs);
-		audio.volume = prefs.volume / 100;
-		audio.currentTime = 0;
 		try {
-			await audio.play();
-			played = true;
+			await play(toneOf(role, prefs), prefs);
 		} catch (error) {
 			if (error?.name === "NotAllowedError") {
 				burstHeard = false;
@@ -129,5 +132,22 @@ export function createSound({
 		}
 	}
 
-	return { alert };
+	// Plays tone `id` once at the user's volume for the settings view's preview. The user asks for it in this tab, so
+	// no tab claims it; mute_sounds, Do Not Disturb and volume 0 keep it silent like every sound. It follows a
+	// click, which lets the browser play, so a refusal (a file that does not load) is ignored.
+	async function preview(id) {
+		const prefs = getPrefs();
+		if (silenced(prefs) || !prefs.volume) return;
+		await play(id, prefs).catch(() => {});
+	}
+
+	async function play(id, prefs) {
+		const audio = player(id);
+		audio.volume = prefs.volume / 100;
+		audio.currentTime = 0;
+		await audio.play();
+		played = true;
+	}
+
+	return { alert, preview };
 }
