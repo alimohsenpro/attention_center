@@ -1,10 +1,12 @@
 import { displayMode, nextDisplayMode } from "../util/display_mode.js";
-import { adoptStyles, element } from "../util/dom.js";
+import { adoptStyles, element, textButton } from "../util/dom.js";
 import { createFeed } from "../util/feed.js";
 import { trapIndex } from "../util/keys.js";
 import { routeArguments } from "../util/route.js";
+import { createPreferenceEditor } from "../util/settings.js";
 import { ALL_TAB, buildTabs } from "../util/window_tabs.js";
 import { ICONS } from "./icons.js";
+import { createSettings, modeLabel } from "./settings.js";
 import { renderTable } from "./table.js";
 import { createTabs } from "./tabs.js";
 import { WINDOW_STYLES } from "./window_styles.js";
@@ -12,22 +14,29 @@ import { WINDOW_STYLES } from "./window_styles.js";
 const PANEL_ID = "ac-panel";
 const TITLE_ID = "ac-window-title";
 const SUMMARY_ID = "ac-window-summary";
-// Inactive tabs (tabindex -1) are left out: Tab reaches the tab list through its selected tab only.
-const FOCUSABLE = ":is(button:not([disabled]), a[href], [tabindex]):not([tabindex='-1'])";
+// Inactive tabs (tabindex -1) are left out: Tab reaches the tab list through its selected tab only, and a group of
+// radio buttons through its checked one.
+const FOCUSABLE =
+	":is(button, input:not([type='radio']:not(:checked)), select, a[href], [tabindex]):not([disabled], [tabindex='-1'])";
 
 // The window [FR-UI-02, FR-UI-03, FR-UI-08]: one tab per source and the "All" tab, the items of the selected tab
 // page by page, and loading, empty and error states, in the container of the display_mode preference. It
 // opens and closes with `store.ui.open`, on the tab `store.ui.tab` names ("All" when none), and follows
 // `store.prefs.display_mode` while open. When it opens by itself at login, `store.ui.newSince` holds the count of
-// its "new since you last looked" line [FR-ALERT-05].
+// its "new since you last looked" line [FR-ALERT-05]. The settings button in its header shows the user's settings
+// in place of the items (ui/settings.js) [FR-SET-02].
 //
 // The dialog is modal: a backdrop covers the page and focus stays inside. The panel above the launcher and
 // the drawer on the inline-end edge leave the page usable, so focus may leave them. Closing returns focus to
 // the element that had it before opening, unless the user has moved it onto the page meanwhile.
 //
 // `api` has getItems, markSeen and setPreferences; `safe` wraps every handler in the client's guard;
-// `announce(text)` speaks through the polite live region; `refreshSummary()` fetches the summary into the store.
-export function createWindow(root, { store, api, safe, announce, refreshSummary, pageSize }) {
+// `announce(text)` speaks through the polite live region; `refreshSummary()` fetches the summary into the store;
+// `tones`, `muted` and `previewTone(id)` serve the settings view.
+export function createWindow(
+	root,
+	{ store, api, safe, announce, refreshSummary, pageSize, tones, muted, previewTone }
+) {
 	adoptStyles(root, WINDOW_STYLES);
 	const frame = element("div", "frame");
 	frame.hidden = true;
@@ -39,19 +48,23 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	const header = element("header", "window-header");
 	const title = element("h2", "window-title", __("What needs your attention"));
 	title.id = TITLE_ID;
+	const settingsButton = iconButton(ICONS.settings, __("Settings", null, "Attention Center"));
+	settingsButton.setAttribute("aria-pressed", "false");
 	// Its icon and label name the mode it switches to (applyMode).
 	const modeButton = element("button", "icon-button mode-button");
 	modeButton.type = "button";
 	const closeButton = iconButton(ICONS.x, __("Close", null, "Attention Center"));
 	const actions = element("div", "window-actions");
-	actions.append(modeButton, closeButton);
+	actions.append(settingsButton, modeButton, closeButton);
 	header.append(title, actions);
 	const summaryStrip = element("p", "summary-strip");
 	summaryStrip.id = SUMMARY_ID;
 	summaryStrip.hidden = true;
 	dialog.append(header, summaryStrip);
 
-	const tabs = createTabs(dialog, { panelId: PANEL_ID, safe, onSelect: select });
+	// The tabs and their panel, which the settings view replaces while it shows.
+	const itemsView = element("div", "items-view");
+	const tabs = createTabs(itemsView, { panelId: PANEL_ID, safe, onSelect: select });
 	const panel = element("div", "panel");
 	panel.id = PANEL_ID;
 	panel.setAttribute("role", "tabpanel");
@@ -68,7 +81,28 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	const next = textButton(__("Next", null, "Attention Center"));
 	pager.append(previous, pageLabel, next);
 	panel.append(toolbar, content, pager);
-	dialog.append(panel);
+	itemsView.append(panel);
+	dialog.append(itemsView);
+
+	const editor = createPreferenceEditor({
+		getPrefs: () => store.get().prefs,
+		setPrefs: (prefs) => store.set({ prefs }),
+		write: api.setPreferences,
+		onStatus: (status) => settings.showStatus(status),
+	});
+	const settings = createSettings(dialog, {
+		store,
+		editor,
+		tones,
+		muted,
+		preview: previewTone,
+		onBack: () => {
+			showItems();
+			tabs.focusSelected();
+		},
+		safe,
+		announce,
+	});
 	frame.append(dialog);
 	root.append(frame);
 
@@ -85,6 +119,10 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	let mode;
 	applyMode();
 
+	settingsButton.addEventListener(
+		"click",
+		safe(() => (settings.shown ? showItems() : showSettings()))
+	);
 	modeButton.addEventListener("click", safe(switchMode));
 	closeButton.addEventListener("click", safe(close));
 	previous.addEventListener(
@@ -159,6 +197,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	// Shows a tab ("All" for null) from its first page with items fetched afresh, and marks its sources seen
 	// again: the pages and seen marks of this opening may predate what the user now asks to see.
 	function showTab(id) {
+		toggleSettings(false);
 		selected = id ?? ALL_TAB;
 		page = 0;
 		loading = false;
@@ -196,10 +235,25 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	}
 
 	function switchMode() {
-		const display_mode = nextDisplayMode(mode);
-		store.set({ prefs: { ...store.get().prefs, display_mode } });
-		// The window follows the click at once; if storing it fails, the next page load shows the stored mode.
-		api.setPreferences({ display_mode }).catch(() => {});
+		editor.change({ display_mode: nextDisplayMode(mode) });
+	}
+
+	function showSettings() {
+		toggleSettings(true);
+	}
+
+	// Back from the settings to the items: the page is drawn again, from the pages already fetched, and marks its
+	// sources seen if it was answered while the settings showed.
+	function showItems() {
+		toggleSettings(false);
+		load();
+	}
+
+	function toggleSettings(shown) {
+		settingsButton.setAttribute("aria-pressed", String(shown));
+		itemsView.hidden = shown;
+		if (shown) settings.show();
+		else settings.hide();
 	}
 
 	// Opens a desk route after closing the window; focus then belongs to the page that opens.
@@ -341,7 +395,8 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 			showError(__("These items could not be loaded."), retry);
 			return;
 		}
-		markSeen(tab.sources.filter((key) => !failed.includes(key)));
+		// Behind the settings view the items are not seen yet; showItems draws them again.
+		if (!itemsView.hidden) markSeen(tab.sources.filter((key) => !failed.includes(key)));
 		keepingFocus(() => {
 			panel.removeAttribute("aria-busy");
 			if (items.length) showItems(tab, { items, hasMore, failed }, summary, retry);
@@ -439,23 +494,11 @@ const FORMAT = {
 	date: (iso) => frappe.datetime.str_to_user(iso.replace("T", " ")),
 };
 
-function modeLabel(mode) {
-	if (mode === "Panel") return __("Show as a panel");
-	if (mode === "Drawer") return __("Show as a drawer");
-	return __("Show as a dialog");
-}
-
 function iconButton(icon, label) {
 	const button = element("button", "icon-button");
 	button.type = "button";
 	button.innerHTML = icon;
 	button.setAttribute("aria-label", label);
 	button.title = label;
-	return button;
-}
-
-function textButton(label, className = "pager-button") {
-	const button = element("button", className, label);
-	button.type = "button";
 	return button;
 }

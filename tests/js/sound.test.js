@@ -254,3 +254,67 @@ test("a tone that fails to load neither locks the tab nor fails the client", asy
 	assert.deepEqual(tab.locks, []);
 	assert.equal(tab.played.length, 1);
 });
+
+test("the preview plays the chosen tone at the user's volume, at once, in the tab that asks", async () => {
+	const browser = fakeBrowser();
+	// Hidden and never clicked: a tab that would claim an alert last.
+	const tab = browser.open({
+		visibility: "hidden",
+		active: false,
+		prefs: { tone: "knock", volume: 40 },
+	});
+
+	await tab.sound.preview("drop");
+
+	assert.deepEqual(tab.played, [{ url: toneUrl("drop"), volume: 0.4 }]);
+});
+
+test("the preview plays in every tab that asks for it, even for the same tone", async () => {
+	const browser = fakeBrowser();
+	const tabs = [browser.open(), browser.open()];
+
+	await Promise.all(tabs.map((tab) => tab.sound.preview("pulse")));
+
+	assert.deepEqual(
+		tabs.map((tab) => tab.played.length),
+		[1, 1]
+	);
+});
+
+// [name, options of the tab]. Every sound is silent then, the preview too [FR-SND-02 AC1].
+const SILENT_PREVIEW_CASES = [
+	["User.mute_sounds is set", { muted: true }],
+	["Do Not Disturb lasts", { prefs: { dnd_until: LATER } }],
+	["the volume is 0", { prefs: { volume: 0 } }],
+];
+
+for (const [name, options] of SILENT_PREVIEW_CASES) {
+	test(`the preview is silent when ${name}`, async () => {
+		const tab = fakeBrowser().open(options);
+
+		await tab.sound.preview("drop");
+
+		assert.deepEqual(tab.played, []);
+	});
+}
+
+test("the preview plays again once Do Not Disturb has ended", async () => {
+	const tab = fakeBrowser().open({ prefs: { dnd_until: EARLIER } });
+
+	await tab.sound.preview("drop");
+
+	assert.equal(tab.played.length, 1);
+});
+
+test("a refused preview neither locks the tab nor shows the hint", async () => {
+	const browser = fakeBrowser();
+	const tab = browser.open();
+	tab.refusal = "NotAllowedError";
+
+	await tab.sound.preview("drop");
+	tab.refusal = null;
+	await browser.play([[tab, "standard", "a"]]);
+
+	assert.deepEqual(tab.locks, []);
+	assert.equal(tab.played.length, 1);
+});

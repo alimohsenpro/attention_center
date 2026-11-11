@@ -13,6 +13,7 @@ import { createToasts, newItemsText } from "./ui/toast.js";
 import { badge } from "./util/badge.js";
 import { adoptStyles } from "./util/dom.js";
 import { createGuard } from "./util/guard.js";
+import { sharePreferences } from "./util/share_prefs.js";
 import { watchTitle } from "./util/title.js";
 
 const HOST_ID = "attention-center-root";
@@ -45,9 +46,13 @@ function start() {
 		{ summary: null, prefs: boot.preferences, ui: { open: false } },
 		api.getSummary
 	);
+	const channel = new BroadcastChannel(CHANNEL_NAME);
+	guard.addCleanup(() => channel.close());
+	sharePreferences({ store, channel, user: frappe.session.user, safe: guard.safe });
 	const title = watchTitle(document, observe);
 	guard.addCleanup(title.stop);
 	const announce = createLiveRegion(shadow);
+	const muted = Boolean(frappe.boot.user.mute_sounds);
 	const openWindow = windowOpener(shadow, {
 		store,
 		api,
@@ -55,6 +60,10 @@ function start() {
 		announce,
 		refreshSummary: () => store.refreshSummary(),
 		pageSize: boot.settings.page_size,
+		tones: boot.tones,
+		muted,
+		// The sound engine exists by the time the user can press "Preview".
+		previewTone: (id) => sound.preview(id),
 	});
 	const toggleWindow = guard.safe(() => {
 		if (store.get().ui.open) setOpen(store, false);
@@ -65,7 +74,7 @@ function start() {
 		onToggleCollapsed: guard.safe(() => toggleCollapsed(store, api)),
 	});
 	const toasts = createToasts(shadow, { onOpen: openWindow, safe: guard.safe, announce });
-	const sound = createAlertSound(boot, { store, launcher, toasts });
+	const sound = createAlertSound(boot, { store, launcher, toasts, channel, muted });
 	const reminder = startReminder({
 		intervalHours: boot.settings.reminder_interval_hours,
 		store,
@@ -214,15 +223,13 @@ function loadScript(src) {
 
 // The alerts' sound (§7.5), played by one tab of the browser. A tab the browser keeps silent until a gesture pulses
 // the launcher and, the first time, shows a hint until the gesture comes [FR-SND-03].
-function createAlertSound(boot, { store, launcher, toasts }) {
-	const channel = new BroadcastChannel(CHANNEL_NAME);
-	guard.addCleanup(() => channel.close());
+function createAlertSound(boot, { store, launcher, toasts, channel, muted }) {
 	const tabs = createTabs({ channel, storage: localStorage, page: document, safe: guard.safe });
 	const sound = createSound({
 		tones: boot.tones,
 		settings: boot.settings,
 		getPrefs: () => store.get().prefs,
-		muted: Boolean(frappe.boot.user.mute_sounds),
+		muted,
 		now: () => frappe.datetime.system_datetime(),
 		claim: tabs.claim,
 		mark: tabs.mark,
