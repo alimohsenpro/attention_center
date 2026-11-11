@@ -106,10 +106,14 @@ def note_auto_opened() -> None:
 
 def get_tones() -> list[dict]:
 	"""The bundled tones with their role, translated label and URL (§7.5)."""
-	return [
-		{"id": tone["id"], "role": tone["role"], "label": _(tone["label"]), "url": SOUNDS_URL + tone["file"]}
-		for tone in _tone_file()
-	]
+	tones = []
+	for tone in _tone_file():
+		# Frappe's string extraction would take a literal inside _(), such as the key "label", for a text.
+		label = tone["label"]
+		tones.append(
+			{"id": tone["id"], "role": tone["role"], "label": _(label), "url": SOUNDS_URL + tone["file"]}
+		)
+	return tones
 
 
 def _own_or(value: object, default: object) -> object:

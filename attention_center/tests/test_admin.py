@@ -76,7 +76,7 @@ class TestAdminDesk(FrappeTestCase):
 			arabic = open_form(SETTINGS, SETTINGS)["__onload"]["tones"]
 		finally:
 			frappe.local.lang = lang
-		self.assertEqual(arabic[0], {"value": "chime", "label": "رنين"})
+		self.assertEqual(arabic[0], {"value": "chime", "label": "رنّة"})
 
 	def test_the_workspace_is_listed_for_managers_only(self):
 		for user, listed in ((self.manager, True), (self.system_manager, True), (self.desk_user, False)):
