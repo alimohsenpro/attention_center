@@ -15,11 +15,24 @@ def doctype_strings(doctype: str) -> set[str]:
 	return strings
 
 
+def read_app_translations() -> dict[str, str]:
+	return get_translation_dict_from_file(
+		frappe.get_app_path("attention_center", "translations", f"{LANG}.csv"), LANG, "attention_center"
+	)
+
+
 class TestArabicTranslations(FrappeTestCase):
+	def test_workspace_strings_are_translated(self):
+		# The desk translates the workspace name and its shortcut labels without a context.
+		workspace = frappe.get_doc("Workspace", "Attention Center")
+		translations = read_app_translations()
+
+		for text in (workspace.name, *(shortcut.label for shortcut in workspace.shortcuts)):
+			with self.subTest(text=text):
+				self.assertIn(text, translations)
+
 	def test_doctype_strings_are_translated_without_changing_frappe_wording(self):
-		app_translations = get_translation_dict_from_file(
-			frappe.get_app_path("attention_center", "translations", f"{LANG}.csv"), LANG, "attention_center"
-		)
+		app_translations = read_app_translations()
 		frappe_catalog = get_catalog("frappe", LANG)
 		self.assertIsNotNone(frappe_catalog.get("Label"))
 

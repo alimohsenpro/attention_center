@@ -1,0 +1,47 @@
+{
+ "charts": [],
+ "content": "[{\"id\": \"ac-shortcut-1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Center Settings\", \"col\": 4}}, {\"id\": \"ac-shortcut-2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Sources\", \"col\": 4}}]",
+ "creation": "2026-11-11 13:25:45.022041",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "notification",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Attention Center",
+ "links": [],
+ "modified": "2026-11-11 13:25:56.089570",
+ "modified_by": "Administrator",
+ "module": "Attention Center",
+ "name": "Attention Center",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [
+  {
+   "role": "Attention Manager"
+  },
+  {
+   "role": "System Manager"
+  }
+ ],
+ "sequence_id": 30.0,
+ "shortcuts": [
+  {
+   "doc_view": "",
+   "label": "Attention Center Settings",
+   "link_to": "Attention Center Settings",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Attention Sources",
+   "link_to": "Attention Source",
+   "type": "DocType"
+  }
+ ],
+ "title": "Attention Center"
+}
