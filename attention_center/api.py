@@ -13,10 +13,11 @@ from frappe.permissions import is_system_user
 from frappe.utils import cint, now_datetime
 
 from attention_center.engine import preferences, registry, runner
+from attention_center.permissions import is_manager
+from attention_center.sources import announcements
 
 SETTINGS = "Attention Center Settings"
 SOURCE = "Attention Source"
-MANAGER_ROLES = frozenset(("System Manager", "Attention Manager"))
 MAX_PAGE_LENGTH = 50
 TEST_SOURCE_ITEMS = 5
 
@@ -112,8 +113,7 @@ def test_source(source: str) -> dict:
 	The source runs with the caller's own permissions, so it shows nothing they could not open anyway.
 	"""
 	user = _desk_user()
-	# frappe.only_for lets everyone through while tests run, so a test could not prove this check.
-	if not MANAGER_ROLES & set(frappe.get_roles(user)):
+	if not is_manager(user):
 		frappe.throw(_("Only an Attention Manager can test a source."), frappe.PermissionError)
 	rows = frappe.get_list(SOURCE, filters={"name": source}, fields=list(registry.SOURCE_FIELDS))
 	if not rows:
@@ -125,6 +125,25 @@ def test_source(source: str) -> dict:
 	count = runner.run_count(rows[0], user)
 	items = runner.run_items(rows[0], user, 0, TEST_SOURCE_ITEMS)
 	return {"count": count, "items": items, "duration_ms": round((perf_counter() - started) * 1000)}
+
+
+@frappe.whitelist(methods=["POST"])
+def acknowledge_announcement(announcement: str) -> dict:
+	"""Acknowledge an announcement the user receives; acknowledging again keeps the first time [FR-ANN-03]."""
+	_desk_user()
+	acknowledged_at = announcements.acknowledge(announcement)
+	return {"announcement": announcement, "acknowledged_at": acknowledged_at.isoformat(timespec="seconds")}
+
+
+@frappe.whitelist()
+def get_announcement_receipts(announcement: str) -> dict:
+	"""For managers: who acknowledged an announcement and when, and who in its audience has not [FR-ANN-04]."""
+	user = _desk_user()
+	if not is_manager(user):
+		frappe.throw(
+			_("Only an Attention Manager can see who acknowledged an announcement."), frappe.PermissionError
+		)
+	return announcements.receipts(announcement)
 
 
 def _desk_user() -> str:
