@@ -404,7 +404,7 @@ class TestDocTypeQuery(FrappeTestCase):
 
 		with (
 			permission_query_conditions(REQUEST, f"{__name__}.slow_condition"),
-			patch.object(doctype_query, "TIME_BUDGET_SECONDS", 0.2),
+			patch.object(runner, "TIME_BUDGET_SECONDS", 0.2),
 			self.assertLogs(logger(), "ERROR") as logs,
 		):
 			started = time.monotonic()

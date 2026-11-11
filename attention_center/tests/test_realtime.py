@@ -184,10 +184,15 @@ class TestRealtime(FrappeTestCase):
 			add_todo(self.user)
 			self.assertEqual(slow_path.call_count, 1, "the handler runs for every DocType")
 
+		# Once the request holds the watch map, an unwatched DocType costs no query and no Redis round trip.
 		note = add_note()
-		with patch.object(frappe.local.db, "sql", wraps=frappe.local.db.sql) as sql:
+		with (
+			patch.object(frappe.local.db, "sql", wraps=frappe.local.db.sql) as sql,
+			patch.object(frappe.cache, "execute_command", wraps=frappe.cache.execute_command) as redis,
+		):
 			realtime.on_doc_event(note, "on_change")
 		sql.assert_not_called()
+		redis.assert_not_called()
 		self.assertEqual(self.commit(), [(self.user, self.nudge(ASSIGNMENTS))])
 
 	def test_several_changes_in_one_transaction_nudge_each_user_once_after_the_commit(self):

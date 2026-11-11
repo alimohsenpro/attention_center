@@ -1,3 +1,6 @@
+import gzip
+import os
+
 import frappe
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils.jinja_globals import bundled_asset
@@ -5,6 +8,10 @@ from frappe.utils.jinja_globals import bundled_asset
 from attention_center.install import after_migrate
 
 SETTINGS = "Attention Center Settings"
+# NFR-PERF-02: the launcher bundle, loaded on every desk page, at most this many bytes gzipped.
+LAUNCHER_GZIP_LIMIT = 25 * 1024
+# A text of the window only (its title): the launcher bundle must not carry the window's code.
+WINDOW_TEXT = b"What needs your attention"
 DOCTYPES = (
 	"Attention Center Settings",
 	"Attention Source",
@@ -12,6 +19,11 @@ DOCTYPES = (
 	"Attention Source User Group",
 	"Attention User Preference",
 )
+
+
+def built_bundle(name: str) -> bytes:
+	with open(os.path.join(frappe.local.sites_path, bundled_asset(name).lstrip("/")), "rb") as file:
+		return file.read()
 
 
 def stored_setting(fieldname: str) -> object:
@@ -39,6 +51,17 @@ class TestInstall(FrappeTestCase):
 		self.assertRegex(
 			bundled_asset("attention_center.bundle.js"),
 			r"^/assets/attention_center/dist/js/attention_center\.bundle\.\w+\.js$",
+		)
+
+	def test_the_launcher_bundle_is_small_and_leaves_the_window_to_its_own_bundle(self):
+		launcher = built_bundle("attention_center.bundle.js")
+
+		self.assertLessEqual(len(gzip.compress(launcher)), LAUNCHER_GZIP_LIMIT)
+		# assertNotIn and assertIn would print the whole bundle.
+		self.assertFalse(WINDOW_TEXT in launcher, "the launcher bundle carries the window's code")
+		self.assertTrue(
+			WINDOW_TEXT in built_bundle("attention_center_window.bundle.js"),
+			"the window bundle lacks the window's title",
 		)
 
 	def test_attention_manager_role_is_installed_with_desk_access(self):

@@ -2,22 +2,13 @@
 
 import json
 import re
-from collections.abc import Iterator
-from contextlib import contextmanager
 from datetime import datetime, time
 
 import frappe
 from frappe import _
-from frappe.database.database import get_query_execution_timeout
 from frappe.utils import cstr, today
 
-from attention_center.engine.contract import (
-	COUNT_CAP,
-	PRIORITIES,
-	TIME_BUDGET_SECONDS,
-	is_overdue,
-	parse_when,
-)
+from attention_center.engine.contract import COUNT_CAP, PRIORITIES, is_overdue, parse_when
 
 # The count and the priority order cover the newest WINDOW rows (see DocTypeQuery.items).
 WINDOW = COUNT_CAP + 1
@@ -50,16 +41,6 @@ def resolve_filters(filters: list, user: str) -> list:
 		return value
 
 	return [[field, operator, resolve(value)] for field, operator, value in filters]
-
-
-@contextmanager
-def statement_timeout(seconds: float) -> Iterator[None]:
-	"""Abort a statement that runs longer than `seconds`, then restore the timeout Frappe set on connecting."""
-	frappe.db.set_execution_timeout(seconds)
-	try:
-		yield
-	finally:
-		frappe.db.set_execution_timeout(get_query_execution_timeout())
 
 
 class DocTypeQuery:
@@ -123,17 +104,16 @@ class DocTypeQuery:
 
 	def rows(self, *fieldnames: str | None, start: int, limit: int) -> list[frappe._dict]:
 		columns = dict.fromkeys(fieldname for fieldname in ("name", *fieldnames) if fieldname)
-		with statement_timeout(TIME_BUDGET_SECONDS):
-			return frappe.get_list(
-				self.source.reference_doctype,
-				filters=self.filters,
-				fields=[f"{self.table}.`{column}`" for column in columns],
-				# The name breaks ties so that the window and the rows after it never overlap.
-				order_by=f"{self.table}.`{self.source.date_field}` desc, {self.table}.`name` desc",
-				limit_start=start,
-				limit_page_length=limit,
-				user=self.user,
-			)
+		return frappe.get_list(
+			self.source.reference_doctype,
+			filters=self.filters,
+			fields=[f"{self.table}.`{column}`" for column in columns],
+			# The name breaks ties so that the window and the rows after it never overlap.
+			order_by=f"{self.table}.`{self.source.date_field}` desc, {self.table}.`name` desc",
+			limit_start=start,
+			limit_page_length=limit,
+			user=self.user,
+		)
 
 	def priority(self, row: frappe._dict) -> str:
 		"""The mapped priority; without a map the field must hold a priority itself."""

@@ -12,7 +12,7 @@ from functools import cache
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, escape_html, now_datetime
 
 from attention_center.engine.contract import parse_when
 
@@ -65,7 +65,8 @@ def set_preferences(values: object) -> dict:
 	"""
 	if not isinstance(values, dict):
 		frappe.throw(_("Preferences must be an object of preference names and values."))
-	unknown = sorted(str(name) for name in values if name not in EDITABLE_FIELDS)
+	# The names come from the request and the desk shows the message as HTML.
+	unknown = sorted(escape_html(str(name)) for name in values if name not in EDITABLE_FIELDS)
 	if unknown:
 		frappe.throw(
 			_("Unknown preferences: {0}. Allowed: {1}").format(", ".join(unknown), ", ".join(EDITABLE_FIELDS))

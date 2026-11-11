@@ -3,13 +3,15 @@
 import inspect
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from functools import cache
 from time import perf_counter
 from typing import TypeVar
 
 import frappe
+from frappe.database.database import get_query_execution_timeout
 from frappe.utils import cint
 
 from attention_center.engine import doctype_query
@@ -77,14 +79,17 @@ def _accepts_since(function: Callable) -> bool:
 def _run(source: frappe._dict, user: str, call: Callable[[], T]) -> T | None:
 	"""What `call` returns, or None when it raised: one source never breaks the others [FR-SRC-05].
 
-	Logs carry the source key, the user, the duration and the exception type, because an exception message
-	may quote a document [NFR-PRIV-01]; only the contract's own messages, which quote nothing, are added.
-	Messages the failed source queued for the user are dropped: the source shows as an error, not a dialog.
+	Each statement the source runs, declarative or python, is stopped after TIME_BUDGET_SECONDS, which fails the
+	source [NFR-PERF-03]. Logs carry the source key, the user, the duration and the exception type, because an
+	exception message may quote a document [NFR-PRIV-01]; only the contract's own messages, which quote nothing,
+	are added. Messages the failed source queued for the user are dropped: the source shows as an error, not a
+	dialog.
 	"""
 	queued_messages = len(frappe.local.message_log)
 	started = perf_counter()
 	try:
-		result = call()
+		with statement_timeout(TIME_BUDGET_SECONDS):
+			result = call()
 	except Exception as error:
 		del frappe.local.message_log[queued_messages:]
 		reason = (
@@ -97,6 +102,16 @@ def _run(source: frappe._dict, user: str, call: Callable[[], T]) -> T | None:
 	if elapsed_ms > TIME_BUDGET_SECONDS * 1000:
 		_logger().warning(f"source {source.key} was slow for {user}: {elapsed_ms} ms")
 	return result
+
+
+@contextmanager
+def statement_timeout(seconds: float) -> Iterator[None]:
+	"""Abort a statement that runs longer than `seconds`, then restore the timeout Frappe set on connecting."""
+	frappe.db.set_execution_timeout(seconds)
+	try:
+		yield
+	finally:
+		frappe.db.set_execution_timeout(get_query_execution_timeout())
 
 
 def _elapsed_ms(started: float) -> int:

@@ -524,6 +524,13 @@ class TestPreferences(ApiTestCase):
 		self.assertIsNone(stored_preference(self.user))
 		self.assertIsNone(stored_preference(self.other_user))
 
+	def test_an_unknown_name_is_escaped_in_the_message(self):
+		with self.assertRaises(frappe.ValidationError) as raised:
+			api.set_preferences({"<img src=x onerror=alert(1)>": 1})
+
+		self.assertIn("&lt;img src=x onerror=alert(1)&gt;", str(raised.exception))
+		self.assertNotIn("<img", str(raised.exception))
+
 	def test_preferences_must_be_an_object(self):
 		for prefs in ("[1, 2]", "not json", '"volume"'):
 			with self.subTest(prefs=prefs), self.assertRaises(frappe.ValidationError):
