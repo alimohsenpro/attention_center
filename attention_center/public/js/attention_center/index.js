@@ -10,7 +10,11 @@ import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
 import { STYLES } from "./ui/styles.js";
 import { createToasts, newItemsText } from "./ui/toast.js";
-import { withAnnouncementPriority } from "./util/announcements.js";
+import {
+	ANNOUNCEMENTS,
+	toastUnseenImmediate,
+	withAnnouncementPriority,
+} from "./util/announcements.js";
 import { badge } from "./util/badge.js";
 import { hideStandardBell } from "./util/bell.js";
 import { adoptStyles } from "./util/dom.js";
@@ -27,6 +31,8 @@ const SHORTCUT = "alt+shift+a";
 const SOUND_HINT = "sound-hint";
 // The toast id of the periodic reminder.
 const REMINDER_TOAST = "reminder";
+// The toast id of the immediate announcements not seen yet, raised when the page loads.
+const UNSEEN_ANNOUNCEMENTS_TOAST = "unseen-announcements";
 
 const guard = createGuard();
 const observe = (callback) => new MutationObserver(guard.safe(callback));
@@ -113,6 +119,14 @@ function start() {
 				toasts,
 				sound,
 				coalesceSeconds: boot.settings.coalesce_seconds,
+			})
+		)
+	);
+	store.onSummary(
+		guard.safe(
+			toastUnseenImmediate({
+				fetchItems: api.getItems,
+				show: (count) => showUnseenAnnouncements(store, toasts, count),
 			})
 		)
 	);
@@ -303,6 +317,21 @@ function alertOnNewItems(store, { api, launcher, toasts, sound, coalesceSeconds 
 			return sound.alert(result.sound, alertId(final, summary));
 		});
 	};
+}
+
+// The sticky toast of immediate announcements the user has not seen since the page loaded (§7.4), without a tone: it
+// tells of no arrival, and would sound again at every page load until the user opens the Announcements tab.
+function showUnseenAnnouncements(store, toasts, count) {
+	const label = store
+		.get()
+		.summary.sources.find((source) => source.key === ANNOUNCEMENTS)?.label;
+	toasts.show({
+		id: UNSEEN_ANNOUNCEMENTS_TOAST,
+		level: "immediate",
+		sticky: true,
+		tab: ANNOUNCEMENTS,
+		text: newItemsText(count, label),
+	});
 }
 
 // Shows the periodic reminder (§7.4): a toast, which opens the window only when the user clicks it, and the

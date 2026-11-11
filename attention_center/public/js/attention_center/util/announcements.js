@@ -28,16 +28,50 @@ export function arrivedPriority(items, since) {
 export async function withAnnouncementPriority(alerts, previous, fetchItems, { prefs, now }) {
 	const alert = alerts.find((candidate) => candidate.source === ANNOUNCEMENTS);
 	if (!alert || alert.level === "immediate") return alerts;
+	const items = await fetchAnnouncements(fetchItems);
+	if (!items) return alerts;
+	const since = previous.sources.find((source) => source.key === ANNOUNCEMENTS)?.latest;
+	const priority = arrivedPriority(items, since);
+	if (!priority) return alerts;
+	const raised = raiseAlert(alert, priority, { prefs, now });
+	return alerts.map((candidate) => (candidate === alert ? raised : candidate));
+}
+
+// The store.onSummary listener that raises the sticky toast of FR-ANN-02 on the first summary of the page load, when
+// an immediate announcement is among those the user has not seen yet: one published while they were away, or whose
+// toast a reload dropped. No later summary raises it (those compare with the previous one, newItemAlerts), and none
+// once the Announcements tab marked the source seen. `fetchItems` answers like get_items; `show(count)` shows the
+// toast for the `count` announcements not seen yet. A failed source or request shows nothing.
+export function toastUnseenImmediate({ fetchItems, show }) {
+	return async ({ previous, summary }) => {
+		if (previous) return;
+		const source = summary.sources.find((candidate) => candidate.key === ANNOUNCEMENTS);
+		if (source?.state !== "ok" || !source.new_since) return;
+		const items = await fetchAnnouncements(fetchItems);
+		if (
+			items &&
+			newest(items, source.new_since).some((item) => item.priority === "immediate")
+		) {
+			show(source.new_since);
+		}
+	};
+}
+
+// The first ARRIVALS_PAGE items of the source, or null without an answer.
+async function fetchAnnouncements(fetchItems) {
 	let answer;
 	try {
 		answer = await fetchItems(ANNOUNCEMENTS, 0, ARRIVALS_PAGE);
 	} catch {
-		return alerts;
+		return null;
 	}
-	if (answer?.state !== "ok") return alerts;
-	const since = previous.sources.find((source) => source.key === ANNOUNCEMENTS)?.latest;
-	const priority = arrivedPriority(answer.items, since);
-	if (!priority) return alerts;
-	const raised = raiseAlert(alert, priority, { prefs, now });
-	return alerts.map((candidate) => (candidate === alert ? raised : candidate));
+	return answer?.state === "ok" ? answer.items : null;
+}
+
+// The `count` most recent items: the source's `new_since` counts those published after the user last looked, so
+// these are the ones not seen yet. Equal dates fall on the same side of that time.
+function newest(items, count) {
+	return [...items]
+		.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+		.slice(0, count);
 }

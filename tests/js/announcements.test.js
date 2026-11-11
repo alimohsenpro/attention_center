@@ -4,6 +4,7 @@ import test from "node:test";
 import {
 	ANNOUNCEMENTS,
 	arrivedPriority,
+	toastUnseenImmediate,
 	withAnnouncementPriority,
 } from "../../attention_center/public/js/attention_center/util/announcements.js";
 
@@ -134,3 +135,94 @@ for (const [name, given, answer, asks] of UNCHANGED_CASES) {
 		assert.equal(calls.length, asks ? 1 : 0);
 	});
 }
+
+// A summary holding the announcements source with these counts, beside another source.
+function loadedSummary(counts) {
+	return {
+		sources: [
+			{ key: "app.tasks", state: "ok", new_since: 2 },
+			{ key: ANNOUNCEMENTS, state: "ok", new_since: 0, ...counts },
+		],
+	};
+}
+
+const ok = (...items) => ({ state: "ok", items });
+// get_items lists those awaiting acknowledgement first: the newest announcements need not come first.
+const SEEN_IMMEDIATE = item("immediate", "2026-11-09T08:00:00");
+const UNSEEN_IMMEDIATE = item("immediate", "2026-11-10T09:40:00");
+const UNSEEN_NORMAL = item("normal", "2026-11-10T09:50:00");
+
+// [name, previous summary, announcements counts, answer of get_items, count the toast shows (null for none),
+// whether the server is asked]
+const PAGE_LOAD_CASES = [
+	[
+		"an immediate announcement not seen yet",
+		null,
+		{ new_since: 1 },
+		ok(SEEN_IMMEDIATE, UNSEEN_IMMEDIATE),
+		1,
+		true,
+	],
+	[
+		"an immediate announcement among several not seen yet",
+		null,
+		{ new_since: 2 },
+		ok(SEEN_IMMEDIATE, UNSEEN_NORMAL, UNSEEN_IMMEDIATE),
+		2,
+		true,
+	],
+	[
+		"only a normal announcement not seen yet; the immediate one was seen",
+		null,
+		{ new_since: 1 },
+		ok(SEEN_IMMEDIATE, UNSEEN_NORMAL),
+		null,
+		true,
+	],
+	["every announcement seen", null, { new_since: 0 }, ok(SEEN_IMMEDIATE), null, false],
+	[
+		"the source in error",
+		null,
+		{ state: "error", new_since: 0 },
+		ok(UNSEEN_IMMEDIATE),
+		null,
+		false,
+	],
+	["a failed request", null, { new_since: 1 }, new Error("offline"), null, true],
+	["the items in error", null, { new_since: 1 }, { state: "error", items: [] }, null, true],
+	[
+		"a later summary of the page load",
+		loadedSummary({ new_since: 0 }),
+		{ new_since: 1 },
+		ok(UNSEEN_IMMEDIATE),
+		null,
+		false,
+	],
+];
+
+for (const [name, previousSummary, counts, answer, shown, asks] of PAGE_LOAD_CASES) {
+	test(`when the page loads, the sticky announcement toast with ${name}: ${shown ?? "none"}`, async () => {
+		const { calls, fetchItems } = fetcher(answer);
+		const toasts = [];
+		const listener = toastUnseenImmediate({ fetchItems, show: (count) => toasts.push(count) });
+
+		await listener({ previous: previousSummary, summary: loadedSummary(counts) });
+
+		assert.deepEqual(toasts, shown === null ? [] : [shown]);
+		assert.deepEqual(calls, asks ? [[ANNOUNCEMENTS, 0, 50]] : []);
+	});
+}
+
+test("when the page loads, a summary without the announcements source raises no announcement toast", async () => {
+	const { calls, fetchItems } = fetcher(ok(UNSEEN_IMMEDIATE));
+	const toasts = [];
+	const listener = toastUnseenImmediate({ fetchItems, show: (count) => toasts.push(count) });
+
+	await listener({
+		previous: null,
+		summary: { sources: [{ key: "app.tasks", state: "ok", new_since: 3 }] },
+	});
+
+	assert.deepEqual(toasts, []);
+	assert.deepEqual(calls, []);
+});
