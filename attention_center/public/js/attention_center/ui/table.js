@@ -8,7 +8,8 @@ import { ICONS } from "./icons.js";
 // row as a card instead [FR-UI-04]; each cell's class names its place in the card.
 //
 // `entries` are {source, item} pairs; `sourceLabel(key)` names a source; `format` has `age(iso)` and
-// `date(iso)`; `onOpenClick` handles a click on an item's "Open" link, whose href is the item's route.
+// `date(iso)`; `onOpenClick(event, entry)` handles a click on an item's "Open" link, whose href is the item's
+// route.
 export function renderTable(entries, { showSource, sourceLabel, format, onOpenClick }) {
 	const table = document.createElement("table");
 	const head = table.createTHead().insertRow();
@@ -27,15 +28,18 @@ export function renderTable(entries, { showSource, sourceLabel, format, onOpenCl
 	for (const th of head.cells) th.scope = "col";
 
 	const body = table.createTBody();
-	for (const { source, item } of entries) {
-		body.append(row(item, showSource ? sourceLabel(source) : null, format, onOpenClick));
+	for (const entry of entries) {
+		body.append(
+			row(entry, showSource ? sourceLabel(entry.source) : null, format, onOpenClick)
+		);
 	}
 	const wrapper = element("div", "table-wrap");
 	wrapper.append(table);
 	return wrapper;
 }
 
-function row(item, sourceName, format, onClick) {
+function row(entry, sourceName, format, onClick) {
+	const { item } = entry;
 	const tr = element("tr");
 	tr.toggleAttribute("data-overdue", item.overdue);
 	tr.dataset.priority = item.priority;
@@ -49,7 +53,7 @@ function row(item, sourceName, format, onClick) {
 
 	const from = element("td", "cell-from", item.from_label);
 	tr.append(title, type, from, dateCell(item.date, format));
-	tr.append(priorityCell(item, format), statusCell(item), openCell(item, onClick));
+	tr.append(priorityCell(item, format), statusCell(item), openCell(entry, onClick));
 	return tr;
 }
 
@@ -93,13 +97,14 @@ function statusCell(item) {
 	return td;
 }
 
-function openCell(item, onClick) {
+function openCell(entry, onClick) {
+	const { item } = entry;
 	const td = element("td", "cell-open");
 	if (!isDeskRoute(item.route)) return td;
 	const link = element("a", "open-link", __("Open", null, "Attention Center"));
 	link.href = item.route;
 	link.setAttribute("aria-label", __("Open {0}", [item.title], "Attention Center"));
-	link.addEventListener("click", onClick);
+	link.addEventListener("click", (event) => onClick(event, entry));
 	td.append(link);
 	return td;
 }

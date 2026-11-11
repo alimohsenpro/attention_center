@@ -10,6 +10,7 @@ import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
 import { STYLES } from "./ui/styles.js";
 import { createToasts, newItemsText } from "./ui/toast.js";
+import { withAnnouncementPriority } from "./util/announcements.js";
 import { badge } from "./util/badge.js";
 import { hideStandardBell } from "./util/bell.js";
 import { adoptStyles } from "./util/dom.js";
@@ -107,6 +108,7 @@ function start() {
 	store.onSummary(
 		guard.safe(
 			alertOnNewItems(store, {
+				api,
 				launcher,
 				toasts,
 				sound,
@@ -268,29 +270,38 @@ function setOpen(store, open, tab = null, newSince = null) {
 }
 
 // Pulses the launcher, and shows one toast and plays one sound per burst, when a summary brings new items (§7.4,
-// §7.5); the alert policy decides which items count, alerts/coalesce.js merges a burst, and of the browser's tabs
+// §7.5); the alert policy decides which items count, an announcement's alert takes the priority of the
+// announcements that arrived (util/announcements.js), alerts/coalesce.js merges a burst, and of the browser's tabs
 // one plays the sound.
-function alertOnNewItems(store, { launcher, toasts, sound, coalesceSeconds }) {
+function alertOnNewItems(store, { api, launcher, toasts, sound, coalesceSeconds }) {
 	let burst = null;
+	// The alerts of each summary are shown in the order of the summaries, although some wait for the announcements.
+	let ready = Promise.resolve();
 	return ({ previous, summary, actor }) => {
+		const context = { prefs: store.get().prefs, now: frappe.datetime.system_datetime() };
 		const alerts = newItemAlerts({
 			previous,
 			summary,
 			actor,
 			user: frappe.session.user,
-			prefs: store.get().prefs,
-			now: frappe.datetime.system_datetime(),
+			...context,
 		});
 		if (!alerts.length) return;
 		launcher.pulse();
-		const result = coalesce(burst, alerts, Date.now(), coalesceSeconds * 1000);
-		burst = result.burst;
-		if (result.toast) {
-			const { id, count, level, sticky, source } = result.toast;
-			const label = summary.sources.find((candidate) => candidate.key === source)?.label;
-			toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
-		}
-		return sound.alert(result.sound, alertId(alerts, summary));
+		const decided = ready.then(() =>
+			withAnnouncementPriority(alerts, previous, api.getItems, context)
+		);
+		ready = decided.catch(() => {});
+		return decided.then((final) => {
+			const result = coalesce(burst, final, Date.now(), coalesceSeconds * 1000);
+			burst = result.burst;
+			if (result.toast) {
+				const { id, count, level, sticky, source } = result.toast;
+				const label = summary.sources.find((candidate) => candidate.key === source)?.label;
+				toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
+			}
+			return sound.alert(result.sound, alertId(final, summary));
+		});
 	};
 }
 

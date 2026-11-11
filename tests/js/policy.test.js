@@ -4,6 +4,7 @@ import test from "node:test";
 import {
 	dndActive,
 	newItemAlerts,
+	raiseAlert,
 	reminderAlert,
 } from "../../attention_center/public/js/attention_center/alerts/policy.js";
 
@@ -326,4 +327,46 @@ test("each source that gained items raises its own alert, in summary order", () 
 			sound: "standard",
 		},
 	]);
+});
+
+// A new normal item's alert raised to another level: [level, scope, Do Not Disturb until, expected level, toast,
+// sticky, sound]. A level that is not more pressing leaves the alert as it was.
+const RAISE_TABLE = [
+	["immediate", "Urgent Only", null, "immediate", true, true, "immediate"],
+	["immediate", "Action Items", null, "immediate", true, true, "immediate"],
+	["immediate", "Action Items", "2026-11-10T11:00:00", "immediate", true, true, null],
+	["urgent", "Urgent Only", null, "urgent", true, false, "urgent"],
+	["urgent", "Everything", "2026-11-10T11:00:00", "urgent", true, false, null],
+	["normal", "Action Items", null, "normal", true, false, "standard"],
+	["info", "Everything", null, "normal", true, false, "standard"],
+];
+
+for (const [level, scope, dndUntil, expected, toast, sticky, sound] of RAISE_TABLE) {
+	test(`a normal alert raised to ${level} with the sound scope "${scope}"${
+		dndUntil ? " during Do Not Disturb" : ""
+	}: ${expected}, sticky ${sticky}, sound ${sound}`, () => {
+		const [previous, next] = EVENTS.normal;
+		const [alert] = alertsFor({ previous, next, scope });
+
+		assert.deepEqual(
+			raiseAlert(alert, level, {
+				prefs: { sound_scope: scope, dnd_until: dndUntil },
+				now: NOW,
+			}),
+			{ source: "app.tasks", level: expected, count: 1, toast, sticky, sound }
+		);
+	});
+}
+
+test("an immediate alert is not lowered", () => {
+	const [previous, next] = EVENTS.immediate;
+	const [alert] = alertsFor({ previous, next });
+
+	assert.equal(
+		raiseAlert(alert, "urgent", {
+			prefs: { sound_scope: "Action Items", dnd_until: null },
+			now: NOW,
+		}),
+		alert
+	);
 });

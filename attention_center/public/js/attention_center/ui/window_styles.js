@@ -331,6 +331,123 @@ export const WINDOW_STYLES = `
 	font-size: 13px;
 }
 
+/* An announcement [FR-ANN-02], in place of the tabs like the settings view. */
+.announcement {
+	flex: 1;
+	min-block-size: 0;
+	overflow: auto;
+	padding-block: 16px 24px;
+	padding-inline: 24px;
+}
+
+.announcement:focus {
+	outline: none;
+}
+
+.announcement-top {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 4px 12px;
+}
+
+.announcement-title {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.announcement-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 12px;
+	margin-block: 8px 0;
+	color: var(--ac-muted);
+	font-size: 12px;
+}
+
+.announcement-meta .pill {
+	display: inline-flex;
+}
+
+.announcement-body {
+	margin-block-start: 16px;
+	overflow-wrap: anywhere;
+}
+
+.announcement-body > :first-child {
+	margin-block-start: 0;
+}
+
+.announcement-body > :last-child {
+	margin-block-end: 0;
+}
+
+.announcement-body img {
+	max-inline-size: 100%;
+	block-size: auto;
+}
+
+.announcement-body a {
+	color: var(--ac-link);
+}
+
+.acknowledgement {
+	display: grid;
+	justify-items: start;
+	gap: 8px;
+	margin-block-start: 16px;
+	padding-block: 12px;
+	padding-inline: 16px;
+	border-radius: var(--ac-radius);
+	background: var(--ac-surface-2);
+}
+
+.acknowledgement .hint {
+	margin: 0;
+}
+
+.acknowledgement .hint:empty {
+	display: none;
+}
+
+.acknowledgement[data-done] {
+	display: flex;
+	align-items: center;
+	font-weight: 600;
+}
+
+.acknowledgement[data-done] svg {
+	flex: none;
+	color: var(--ac-green-500);
+}
+
+.primary-button {
+	padding-block: 6px;
+	padding-inline: 16px;
+	border: 0;
+	border-radius: var(--ac-radius-sm);
+	background: var(--ac-green-700);
+	color: #ffffff;
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 150ms ease-out;
+}
+
+.primary-button:hover {
+	background: var(--ac-green-800);
+}
+
+.primary-button[aria-disabled="true"] {
+	opacity: 0.6;
+	cursor: default;
+}
+
 /* The tab strip keeps its height when the window is short; the items scroll instead. */
 .tabs {
 	display: flex;
@@ -697,7 +814,8 @@ tr[data-overdue] time {
 	}
 
 	.summary-strip,
-	.settings {
+	.settings,
+	.announcement {
 		padding-inline: 16px;
 	}
 

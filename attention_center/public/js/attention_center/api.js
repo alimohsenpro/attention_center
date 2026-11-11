@@ -48,6 +48,11 @@ export function createApi(call) {
 		getSummary: () => read("get_summary"),
 		getItems: (source, start, pageLength) =>
 			read("get_items", { source, start, page_length: pageLength }),
+		getAnnouncementsToAcknowledge: (start, pageLength) =>
+			read("get_announcements_to_acknowledge", { start, page_length: pageLength }),
+		getAnnouncement: (name) => read("get_announcement", { announcement: name }),
+		acknowledgeAnnouncement: (name) =>
+			write("acknowledge_announcement", { announcement: name }),
 		markSeen: (source) => write("mark_seen", { source }),
 		setPreferences: (prefs) => write("set_preferences", { prefs }),
 		noteAutoOpened: () => write("note_auto_opened", {}),

@@ -24,24 +24,36 @@ const RULES = {
 export function newItemAlerts({ previous, summary, actor, user, prefs, now }) {
 	if (!previous || actor === user) return [];
 	const before = new Map(previous.sources.map((source) => [source.key, source]));
-	const silent = dndActive(prefs.dnd_until, now);
 	const alerts = [];
 	for (const source of summary.sources) {
 		const count = newCount(before.get(source.key), source);
 		if (!count) continue;
 		const level = alertLevel(before.get(source.key), source);
-		const rule = RULES[level];
-		const audible = !silent && (!rule.scopes || rule.scopes.includes(prefs.sound_scope));
-		alerts.push({
-			source: source.key,
-			level,
-			count,
-			toast: rule.toast,
-			sticky: level === "immediate",
-			sound: audible ? rule.sound : null,
-		});
+		alerts.push({ source: source.key, count, ...ruling(level, prefs, now) });
 	}
 	return alerts;
+}
+
+// A source's alert at a more pressing level than its counters tell, with the toast and sound of that level: the
+// announcements count as urgent or immediate only while they await acknowledgement, yet an immediate one for
+// information still raises a sticky toast [FR-ANN-02]. A level that is not more pressing leaves the alert as it is.
+export function raiseAlert(alert, level, { prefs, now }) {
+	if (LEVELS.indexOf(level) <= LEVELS.indexOf(alert.level)) return alert;
+	return { ...alert, ...ruling(level, prefs, now) };
+}
+
+// What an alert of this level shows and plays (RULES); Do Not Disturb silences every sound.
+function ruling(level, prefs, now) {
+	const rule = RULES[level];
+	const audible =
+		!dndActive(prefs.dnd_until, now) &&
+		(!rule.scopes || rule.scopes.includes(prefs.sound_scope));
+	return {
+		level,
+		toast: rule.toast,
+		sticky: level === "immediate",
+		sound: audible ? rule.sound : null,
+	};
 }
 
 // The periodic reminder's alert (FR-ALERT-02, last row): a toast and the organisation's reminder tone at

@@ -1,10 +1,12 @@
+import { ANNOUNCEMENTS } from "../util/announcements.js";
 import { displayMode, nextDisplayMode } from "../util/display_mode.js";
 import { adoptStyles, element, textButton } from "../util/dom.js";
 import { createFeed } from "../util/feed.js";
 import { keepsKey, trapIndex } from "../util/keys.js";
 import { routeArguments } from "../util/route.js";
 import { createPreferenceEditor } from "../util/settings.js";
-import { ALL_TAB, buildTabs } from "../util/window_tabs.js";
+import { ALL_TAB, buildTabs, itemFetcher } from "../util/window_tabs.js";
+import { createAnnouncement } from "./announcement.js";
 import { ICONS } from "./icons.js";
 import { createSettings, modeLabel } from "./settings.js";
 import { renderTable } from "./table.js";
@@ -24,13 +26,15 @@ const FOCUSABLE =
 // opens and closes with `store.ui.open`, on the tab `store.ui.tab` names ("All" when none), and follows
 // `store.prefs.display_mode` while open. When it opens by itself at login, `store.ui.newSince` holds the count of
 // its "new since you last looked" line [FR-ALERT-05]. The settings button in its header shows the user's settings
-// in place of the items (ui/settings.js) [FR-SET-02].
+// in place of the items (ui/settings.js) [FR-SET-02]; "Open" on an announcement shows it there too, with its
+// acknowledgement (ui/announcement.js) [FR-ANN-02, FR-ANN-03].
 //
 // The dialog is modal: a backdrop covers the page and focus stays inside. The panel above the launcher and
 // the drawer on the inline-end edge leave the page usable, so focus may leave them. Closing returns focus to
 // the element that had it before opening, unless the user has moved it onto the page meanwhile.
 //
-// `api` has getItems, markSeen and setPreferences; `safe` wraps every handler in the client's guard;
+// `api` has getItems, getAnnouncementsToAcknowledge, getAnnouncement, acknowledgeAnnouncement, markSeen and
+// setPreferences; `safe` wraps every handler in the client's guard;
 // `announce(text)` speaks through the polite live region; `refreshSummary()` fetches the summary into the store;
 // `tones`, `muted` and `previewTone(id)` serve the settings view.
 export function createWindow(
@@ -96,9 +100,18 @@ export function createWindow(
 		tones,
 		muted,
 		preview: previewTone,
-		onBack: () => {
-			closeSettings();
-			tabs.focusSelected();
+		onBack: backToList,
+		safe,
+		announce,
+	});
+	const announcement = createAnnouncement(dialog, {
+		api,
+		format: FORMAT,
+		onBack: backToList,
+		// Every page fetched may show the announcement as awaiting: going back fetches them again.
+		onAcknowledged: () => {
+			feeds = new Map();
+			refreshSummary();
 		},
 		safe,
 		announce,
@@ -121,7 +134,7 @@ export function createWindow(
 
 	settingsButton.addEventListener(
 		"click",
-		safe(() => (settings.shown ? closeSettings() : toggleSettings(true)))
+		safe(() => (settings.shown ? returnToItems() : showView("settings")))
 	);
 	modeButton.addEventListener("click", safe(switchMode));
 	closeButton.addEventListener("click", safe(close));
@@ -135,13 +148,25 @@ export function createWindow(
 	);
 	// "Open" and "View all" are links: a click with a modifier key or the middle button is left to the browser,
 	// which opens a new tab; a plain click navigates in place.
-	const onLinkClick = safe((event) => {
-		const { button, ctrlKey, metaKey, shiftKey, altKey } = event;
-		if (button !== 0 || ctrlKey || metaKey || shiftKey || altKey) return;
+	viewAll.addEventListener(
+		"click",
+		safe((event) => {
+			if (!isPlainClick(event)) return;
+			event.preventDefault();
+			navigate(viewAll.getAttribute("href"));
+		})
+	);
+	// An announcement opens in the window, where it can be acknowledged; its link still opens its form in a new tab.
+	const onOpenClick = safe((event, { source, item }) => {
+		if (!isPlainClick(event)) return;
 		event.preventDefault();
-		navigate(event.currentTarget.getAttribute("href"));
+		if (source === ANNOUNCEMENTS) {
+			showView("announcement");
+			announcement.show(item.id);
+		} else {
+			navigate(item.route);
+		}
 	});
-	viewAll.addEventListener("click", onLinkClick);
 	// Only the dialog's frame has a box of its own, the backdrop; the panel's and the drawer's take no clicks.
 	frame.addEventListener(
 		"pointerdown",
@@ -197,7 +222,7 @@ export function createWindow(
 	// Shows a tab ("All" for null) from its first page with items fetched afresh, and marks its sources seen
 	// again: the pages and seen marks of this opening may predate what the user now asks to see.
 	function showTab(id) {
-		toggleSettings(false);
+		showView("items");
 		selected = id ?? ALL_TAB;
 		page = 0;
 		loading = false;
@@ -238,18 +263,25 @@ export function createWindow(
 		editor.change({ display_mode: nextDisplayMode(mode) });
 	}
 
-	// Back from the settings to the items: the page is drawn again, from the pages already fetched, and marks its
-	// sources seen if it was answered while the settings showed.
-	function closeSettings() {
-		toggleSettings(false);
+	// Back from the settings or an announcement to the items: the page is drawn again, from the pages already
+	// fetched, and marks its sources seen if it was answered meanwhile.
+	function returnToItems() {
+		showView("items");
 		load();
 	}
 
-	function toggleSettings(shown) {
-		settingsButton.setAttribute("aria-pressed", String(shown));
-		itemsView.hidden = shown;
-		if (shown) settings.show();
+	function backToList() {
+		returnToItems();
+		tabs.focusSelected();
+	}
+
+	// Shows the tabs and their items, the settings, or an announcement.
+	function showView(view) {
+		settingsButton.setAttribute("aria-pressed", String(view === "settings"));
+		itemsView.hidden = view !== "items";
+		if (view === "settings") settings.show();
 		else settings.hide();
+		if (view !== "announcement") announcement.hide();
 	}
 
 	// Opens a desk route after closing the window; focus then belongs to the page that opens.
@@ -336,7 +368,10 @@ export function createWindow(
 	function feedFor(tab) {
 		const keys = tab.sources.join("\n");
 		if (feeds.get(tab.id)?.keys !== keys) {
-			feeds.set(tab.id, { keys, feed: createFeed(tab.sources, api.getItems, pageSize) });
+			feeds.set(tab.id, {
+				keys,
+				feed: createFeed(tab.sources, itemFetcher(tab, api), pageSize),
+			});
 		}
 		return feeds.get(tab.id).feed;
 	}
@@ -390,8 +425,8 @@ export function createWindow(
 			showError(__("These items could not be loaded."), retry);
 			return;
 		}
-		// Behind the settings view the items are not seen yet; closeSettings draws them again.
-		if (!itemsView.hidden) markSeen(tab.sources.filter((key) => !failed.includes(key)));
+		// Behind the settings or an announcement the items are not seen yet; returnToItems draws them again.
+		if (!itemsView.hidden) markSeen(tab.marks.filter((key) => !failed.includes(key)));
 		keepingFocus(() => {
 			panel.removeAttribute("aria-busy");
 			if (items.length) showItems(tab, { items, hasMore, failed }, summary, retry);
@@ -426,7 +461,7 @@ export function createWindow(
 				showSource: tab.id === ALL_TAB,
 				sourceLabel: (key) => labels.get(key),
 				format: FORMAT,
-				onOpenClick: onLinkClick,
+				onOpenClick,
 			})
 		);
 		content.replaceChildren(...parts);
@@ -488,6 +523,12 @@ const FORMAT = {
 	age: (iso) => frappe.datetime.prettyDate(iso) || FORMAT.date(iso),
 	date: (iso) => frappe.datetime.str_to_user(iso.replace("T", " ")),
 };
+
+// A click the window handles itself; one with a modifier key or another button is left to the browser, which opens
+// the link in a new tab.
+function isPlainClick({ button, ctrlKey, metaKey, shiftKey, altKey }) {
+	return button === 0 && !ctrlKey && !metaKey && !shiftKey && !altKey;
+}
 
 function iconButton(icon, label) {
 	const button = element("button", "icon-button");

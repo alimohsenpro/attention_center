@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { ANNOUNCEMENTS } from "../../attention_center/public/js/attention_center/util/announcements.js";
 import {
 	ALL_TAB,
 	buildTabs,
+	itemFetcher,
 } from "../../attention_center/public/js/attention_center/util/window_tabs.js";
 
 // Frappe's __() with its placeholder substitution, without a translation.
@@ -55,6 +57,7 @@ test("before the first summary there is only the All tab, showing no source", ()
 			id: ALL_TAB,
 			label: "All",
 			sources: [],
+			marks: [],
 			counter: "",
 			attention: false,
 			unseen: false,
@@ -152,4 +155,100 @@ test("a source tab links to the source's own page only through a desk route", ()
 		tabs.map((tab) => tab.listRoute),
 		[null, "/app/todo?status=Open", null, null]
 	);
+});
+
+test("Announcements comes last, after the info sources, and All shows it among the action sources", () => {
+	const tabs = buildTabs(
+		summary([
+			source(ANNOUNCEMENTS, "action"),
+			source("app.notifications", "info"),
+			source("app.approvals", "action"),
+		])
+	);
+
+	assert.deepEqual(
+		tabs.map((tab) => tab.id),
+		[ALL_TAB, "app.approvals", "app.notifications", ANNOUNCEMENTS]
+	);
+	assert.deepEqual(tabs[0].sources, [ANNOUNCEMENTS, "app.approvals"]);
+});
+
+test("viewing All marks every action source seen but the announcements, which the Announcements tab marks", () => {
+	const tabs = buildTabs(
+		summary([
+			source("app.approvals", "action"),
+			source(ANNOUNCEMENTS, "action"),
+			source("app.tasks", "action"),
+			source("app.notifications", "info"),
+		])
+	);
+
+	assert.deepEqual(
+		tabs.map((tab) => [tab.id, tab.marks]),
+		[
+			[ALL_TAB, ["app.approvals", "app.tasks"]],
+			["app.approvals", ["app.approvals"]],
+			["app.tasks", ["app.tasks"]],
+			["app.notifications", ["app.notifications"]],
+			[ANNOUNCEMENTS, [ANNOUNCEMENTS]],
+		]
+	);
+});
+
+const ANNOUNCEMENT_TAB_CASES = [
+	["nothing", {}, { counter: "", attention: false, unseen: false }],
+	[
+		"a new announcement for information",
+		{ new_since: 1 },
+		{ counter: "", attention: false, unseen: true },
+	],
+	[
+		"one awaiting acknowledgement, seen",
+		{ count: 1 },
+		{ counter: "1", attention: false, unseen: false },
+	],
+	[
+		"a new immediate one awaiting acknowledgement",
+		{ count: 2, immediate: 1, new_since: 1 },
+		{ counter: "2", attention: true, unseen: true },
+	],
+	[
+		"a failed source",
+		{ state: "error", count: 1, new_since: 1 },
+		{ counter: "", attention: false, unseen: false },
+	],
+];
+
+for (const [name, counts, expected] of ANNOUNCEMENT_TAB_CASES) {
+	test(`the Announcements tab with ${name}`, () => {
+		const tab = buildTabs(summary([source(ANNOUNCEMENTS, "action", counts)])).at(-1);
+		assert.deepEqual(
+			{ counter: tab.counter, attention: tab.attention, unseen: tab.unseen },
+			expected
+		);
+	});
+}
+
+test("All takes only the announcements awaiting acknowledgement; every other tab gets a source's items", async () => {
+	const calls = [];
+	const api = {
+		getItems: async (key, start, size) => calls.push(["getItems", key, start, size]),
+		getAnnouncementsToAcknowledge: async (start, size) =>
+			calls.push(["getAnnouncementsToAcknowledge", start, size]),
+	};
+	const [all, approvals, announcements] = buildTabs(
+		summary([source("app.approvals", "action"), source(ANNOUNCEMENTS, "action")])
+	);
+
+	await itemFetcher(all, api)("app.approvals", 0, 10);
+	await itemFetcher(all, api)(ANNOUNCEMENTS, 10, 10);
+	await itemFetcher(approvals, api)("app.approvals", 0, 10);
+	await itemFetcher(announcements, api)(ANNOUNCEMENTS, 0, 10);
+
+	assert.deepEqual(calls, [
+		["getItems", "app.approvals", 0, 10],
+		["getAnnouncementsToAcknowledge", 10, 10],
+		["getItems", "app.approvals", 0, 10],
+		["getItems", ANNOUNCEMENTS, 0, 10],
+	]);
 });
