@@ -17,3 +17,6 @@ node --test "$REPO_DIR"/tests/js/*.test.js
 echo "== backend tests"
 cd "$BENCH_DIR"
 bench --site "$SITE" run-tests --app attention_center
+
+echo "== UI smoke tests (skipped when Playwright for Python or its Chromium is missing)"
+BENCH_DIR="$BENCH_DIR" SITE="$SITE" python3 "$REPO_DIR/tests/ui/test_smoke.py"

@@ -551,15 +551,21 @@ DocType JSON; plain desk scripts, not modules of the client bundles).
 
 English source strings wrapped with `_()` / `__()`. No string concatenation or template literals
 inside the translation call; use placeholders (`__("{0} new items", [n])`). `translations/ar.csv`
-holds simple, familiar Arabic. A backend test extracts every `_()`/`__()` literal from the app
-and fails if one is missing from `ar.csv` [NFR-I18N-01]. Dates and "x ago" text use Frappe's
-client utilities so they follow the user's locale.
+holds simple, familiar Arabic. `tests/test_translations.py` extracts every `_()`/`__()` literal of
+the app's Python and JavaScript with the extractors of `bench generate-pot-file`, adds the texts
+the app translates from its data (tone labels, labels of the built-in sources), and fails when one
+lacks a row in `ar.csv` with Arabic text and the same placeholders, or when a row without context
+would change Frappe's own Arabic for the text [NFR-I18N-01]. The extractors lose a text's context
+when a call sits among the arguments of `__()`, and take any literal inside `_()` for a text: keep
+the other arguments plain values. Dates and "x ago" text use Frappe's client utilities so they
+follow the user's locale.
 
 ## 10. Test strategy [NFR-MAINT-01]
 
 - **Backend** (`bench --site <site> run-tests --app attention_center`): `FrappeTestCase` from `frappe.tests.utils` (Frappe 15). Each test creates its own users/roles/documents and cleans up via rollback. Mandatory coverage: source-definition validation; declarative executor (placeholders, mapping, caps, ordering); permission filtering with role permissions, a User Permission, and a `permission_query_conditions` fixture DocType created in the test; approvals with "role but no read permission"; targeting narrowing; fault isolation (a raising python source); cache TTL and invalidation; recipients and single nudge per request (`frappe.publish_realtime` patched); API input validation and "cannot read another user's data"; preferences validation; translation completeness.
 - **Client pure logic**: `node --test tests/js/*.test.js` (Node 22 no longer takes a directory argument) for policy, coalescing, tab coordination (fake channel/storage/clock), reminder scheduling, escaping and route validation. No browser needed.
-- **UI smoke** (from M6): Playwright against the sandbox/CI site: launcher renders, window opens in three modes, RTL/LTR screenshots, keyboard open/close. Kept small.
+- **UI smoke** (M6-T1): `tests/ui/test_smoke.py`, Python Playwright run by `scripts/ci/run_tests.sh` with the system `python3`, and skipped with the reason when Playwright or its Chromium is missing, as in CI. It completes the setup wizard if needed, serves the site with `bench serve`, creates a desk user with an assignment and a notification, and checks the launcher and the window in English (LTR) and Arabic (RTL), light and dark: the inline-end corner, translated texts, the theme's surface, `Esc` and the shortcut, and the three display modes right to left. `AC_UI_SCREENSHOTS=<dir>` keeps a screenshot of each window. Kept small.
+- **Contrast**: `tests/js/contrast.test.js` reads the tokens of `ui/styles.js` and checks every text colour on the background the stylesheets put it on, in both themes, against WCAG 2.1 AA (4.5:1) [NFR-A11Y-01].
 - Tests must be able to fail: no assertion-free tests, no mocking of the unit under test, no reliance on old data in the site.
 - `scripts/ci/run_tests.sh` is the single entry point used by CI and by agents locally.
 

@@ -68,6 +68,8 @@ Downloads dominate and their speed varies from run to run (the operator's run to
 | Action | Duration |
 |---|---|
 | `bash scripts/ci/run_tests.sh` (38 coordinator tests, 1 backend test) | 1.0 s |
+| `bash scripts/ci/run_tests.sh` on 2026-11-11 (40 coordinator, 525 client, 190 backend, 2 UI smoke tests) | 55 s |
+| UI smoke suite alone (`python3 tests/ui/test_smoke.py`), with its asset build, setup-wizard check, cache clear and `bench serve` start | 21–22 s |
 | `bench_up.sh` on a ready bench | 3–4 s |
 | `bench --site test_site serve --port 8000` until `/login` answers | 2.1 s |
 | `bench build --app frappe` on its own | 10–12 s |
@@ -105,8 +107,14 @@ serve --port 8000` running, headless Chromium (Python Playwright) got HTTP 200 f
 stylesheets and no failed request; launch plus load took 0.87–0.95 s over four visits. Logging
 in as Administrator reached the desk in 1.15–1.33 s with no page errors. A fresh site sends the desk to
 `/app/setup-wizard/0`, so UI work (screenshots, the M6 smoke suite) must complete the setup
-wizard first; `bench_up.sh` does not. Before Frappe's assets were built the same visit got
-HTTP 500.
+wizard first; `bench_up.sh` does not. The smoke suite (`tests/ui/test_smoke.py`, M6-T1) runs
+`bench --site test_site execute frappe.utils.install.complete_setup_wizard`, Frappe's own test
+preparation, which sets the site to English, United States, America/New_York and USD. Before
+Frappe's assets were built the same visit got HTTP 500.
+
+On the desk, the box that fixed elements are placed in is 15 px narrower than
+`document.documentElement.clientWidth` (the scrollbar's width): measure positions of the launcher
+or the window against a `position: fixed; inset: 0` probe, as the smoke suite does.
 
 ```python
 from playwright.sync_api import sync_playwright
@@ -136,3 +144,4 @@ through console messages instead. `bench serve` alone has no socket server: `con
 | Redis | two service containers on 13000 and 11000 | two local `redis-server` on the same ports |
 | Python / Node | 3.11 (setup-python) / 18 | 3.11.17 / 22.22.0 |
 | Tests | `scripts/ci/run_tests.sh` | the same script |
+| UI smoke tests | skipped: no Playwright for Python or Chromium | run with the pre-installed Playwright and Chromium |

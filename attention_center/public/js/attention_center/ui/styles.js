@@ -302,8 +302,10 @@ button {
 	transition: background-color 150ms ease-out;
 }
 
+/* Filled like a hovered "Open": green 500 on surface 2 reaches only 4.45:1 in the dark theme. */
 .toast-action:hover {
-	background: var(--ac-surface-2);
+	background: var(--ac-link);
+	color: var(--ac-surface);
 }
 
 .toast-close {

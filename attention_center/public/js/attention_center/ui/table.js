@@ -70,8 +70,9 @@ function priorityCell(item, format) {
 	if (item.overdue) {
 		td.append(pill(__("Overdue", null, "Attention Center"), "overdue"));
 	} else if (item.due) {
-		const due = __("Due {0}", [format.date(item.due)], "Attention Center");
-		td.append(element("span", "muted", due));
+		// A call among the arguments of __() hides the context from Frappe's string extraction.
+		const date = format.date(item.due);
+		td.append(element("span", "muted", __("Due {0}", [date], "Attention Center")));
 	}
 	return td;
 }

@@ -40,7 +40,8 @@ Status colours for `status_color`: `gray #9aa9b5`, `blue #3b82a0`, `green #0e9f8
 `orange #c59a42`, `red #d0574b`.
 
 Dark mode follows the desk (`data-theme="dark"` on `<html>`), not the OS setting. Text on
-coloured backgrounds must reach a 4.5:1 contrast ratio; check pairs with the script added in M6-T1.
+coloured backgrounds must reach a 4.5:1 contrast ratio; `node --test tests/js/contrast.test.js`
+checks the pairs the stylesheets use, in both themes, and prints each ratio.
 
 ## Shape, spacing, type
 
