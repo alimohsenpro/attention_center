@@ -11,13 +11,15 @@ import { WINDOW_STYLES } from "./window_styles.js";
 
 const PANEL_ID = "ac-panel";
 const TITLE_ID = "ac-window-title";
+const SUMMARY_ID = "ac-window-summary";
 // Inactive tabs (tabindex -1) are left out: Tab reaches the tab list through its selected tab only.
 const FOCUSABLE = ":is(button:not([disabled]), a[href], [tabindex]):not([tabindex='-1'])";
 
 // The window [FR-UI-02, FR-UI-03, FR-UI-08]: one tab per source and the "All" tab, the items of the selected tab
 // page by page, and loading, empty and error states, in the container of the display_mode preference. It
 // opens and closes with `store.ui.open`, on the tab `store.ui.tab` names ("All" when none), and follows
-// `store.prefs.display_mode` while open.
+// `store.prefs.display_mode` while open. When it opens by itself at login, `store.ui.newSince` holds the count of
+// its "new since you last looked" line [FR-ALERT-05].
 //
 // The dialog is modal: a backdrop covers the page and focus stays inside. The panel above the launcher and
 // the drawer on the inline-end edge leave the page usable, so focus may leave them. Closing returns focus to
@@ -44,7 +46,10 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	const actions = element("div", "window-actions");
 	actions.append(modeButton, closeButton);
 	header.append(title, actions);
-	dialog.append(header);
+	const summaryStrip = element("p", "summary-strip");
+	summaryStrip.id = SUMMARY_ID;
+	summaryStrip.hidden = true;
+	dialog.append(header, summaryStrip);
 
 	const tabs = createTabs(dialog, { panelId: PANEL_ID, safe, onSelect: select });
 	const panel = element("div", "panel");
@@ -120,6 +125,7 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 				else hide();
 			} else if (state.ui.open && state.ui !== previousState.ui) {
 				// Asked to open while open, as from a toast's "View": the user asks for what arrived.
+				showSummary(state.ui.newSince);
 				showTab(state.ui.tab);
 			} else if (state.ui.open && state.summary !== previousState.summary) {
 				onSummary();
@@ -131,8 +137,23 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		opener = root.activeElement ?? document.activeElement;
 		restoreFocus = true;
 		frame.hidden = false;
+		showSummary(store.get().ui.newSince);
 		showTab(store.get().ui.tab);
 		refresh();
+	}
+
+	// The "new since you last looked" line, for a count; none for null. The count was read before the window
+	// opened, since opening it marks the sources seen.
+	function showSummary(newSince) {
+		const shown = typeof newSince === "number";
+		summaryStrip.hidden = !shown;
+		if (!shown) {
+			dialog.removeAttribute("aria-describedby");
+			return;
+		}
+		summaryStrip.innerHTML = ICONS.bell;
+		summaryStrip.append(element("span", null, newSinceText(newSince)));
+		dialog.setAttribute("aria-describedby", SUMMARY_ID);
 	}
 
 	// Shows a tab ("All" for null) from its first page with items fetched afresh, and marks its sources seen
@@ -402,6 +423,14 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 		}
 		return box;
 	}
+}
+
+// The line of the window that opened by itself at login: how many action items arrived since the user last
+// looked. It shows with none too, so that the user knows the items waiting are ones they have seen.
+export function newSinceText(count) {
+	if (!count) return __("Nothing new since you last looked");
+	if (count === 1) return __("1 new item since you last looked");
+	return __("{0} new items since you last looked", [count]);
 }
 
 // Dates arrive as ISO text in the system time zone; Frappe's helpers show them in the user's zone and format.

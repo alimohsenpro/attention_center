@@ -129,6 +129,26 @@ test("marking sources seen is a write, queued behind the preference writes", asy
 	assert.equal(await seen, null);
 });
 
+test("recording the login auto-open is a write, queued behind the preference writes", async () => {
+	const server = fakeServer();
+	const api = createApi(server.call);
+
+	const collapse = api.setPreferences({ launcher_collapsed: true });
+	const noted = api.noteAutoOpened();
+	await settle();
+	assert.equal(server.requests.length, 1);
+
+	server.requests[0].resolve({});
+	await collapse;
+	await settle();
+	assert.deepEqual(
+		[server.requests[1].method, server.requests[1].args],
+		["attention_center.api.note_auto_opened", {}]
+	);
+	server.requests[1].resolve(null);
+	assert.equal(await noted, null);
+});
+
 // A fetch that records each request and gives every one the same answer.
 function fakeFetch(status, body) {
 	const requests = [];

@@ -247,6 +247,11 @@ button {
 	--ac-toast-accent: var(--ac-p-immediate);
 }
 
+/* The periodic reminder is about urgent, immediate and overdue items. */
+.toast[data-level="reminder"] {
+	--ac-toast-accent: var(--ac-p-urgent);
+}
+
 /* Green 700 is too dark on the dark surface for text (WCAG AA); green 500 is the same hue, lighter. */
 :host([data-theme="dark"]) .toast {
 	--ac-link: var(--ac-green-500);
