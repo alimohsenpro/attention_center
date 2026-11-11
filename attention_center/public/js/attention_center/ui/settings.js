@@ -6,6 +6,9 @@ import { ICONS } from "./icons.js";
 
 const TONE_ID = "ac-settings-tone";
 const VOLUME_ID = "ac-settings-volume";
+// A browser runs a longer timer at once (beyond 2^31 ms), and set_preferences takes any end, so the view checks
+// again at least hourly.
+const MAX_REDRAW_MS = 3600 * 1000;
 
 // The window's settings view [FR-SND-02, FR-SET-02, FR-UI-03]: the sound scope, the tone with a preview, the volume,
 // Do Not Disturb, auto-open after login and the display mode. Each control shows the effective preference from the
@@ -174,8 +177,11 @@ export function createSettings(
 		dnd.check(choice);
 		dndStatus.textContent = dndText(choice, until);
 		clearTimeout(dndTimer);
-		// A second late, so that the time read then is past the end.
-		if (choice !== "off") dndTimer = setTimeout(safe(render), msUntil(until, now) + 1000);
+		if (choice !== "off") {
+			// A second late, so that the time read then is past the end.
+			const redrawMs = Math.min(msUntil(until, now) + 1000, MAX_REDRAW_MS);
+			dndTimer = setTimeout(safe(render), redrawMs);
+		}
 
 		autoOpen.checked = prefs.auto_open_on_login;
 		mode.check(displayMode(prefs.display_mode));
