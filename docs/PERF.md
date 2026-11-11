@@ -40,10 +40,10 @@ does the same work per request.
 ## Dataset
 
 The reference dataset of NFR-PERF-01, 10 000 rows of each built-in source DocType, spread over 50
-desk users (200 rows each, the newest a minute apart):
+desk users (200 rows each; one row a minute over the last week, the users taking turns):
 
-- `ToDo`: per user 150 open (priority Low, Medium and High in turn, due dates from two days ago to
-  four days ahead, so some are overdue) and 50 closed.
+- `ToDo`: per user 150 open (priority Low, Medium and High in turn, due from two days before to four
+  days after its creation, so many are overdue) and 50 closed.
 - `Notification Log`: per user 120 unread and 80 read, each about one of the user's assignments.
 - `Workflow Action`: one per assignment, open while the assignment is, waiting on a role only that
   user holds (10 000 rows of `Workflow Action Permitted Role`), on a document the user may read.
