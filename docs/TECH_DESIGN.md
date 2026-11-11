@@ -574,7 +574,8 @@ follow the user's locale.
 One capped query per source per user per TTL; nudges invalidate precisely. The approvals source
 performs up to 100 permission checks per recompute — acceptable behind the cache; keep it out of
 `extend_bootinfo`. The doc-event hook must stay O(1) for unwatched DocTypes; measure it in a test
-with a counter on the slow path.
+with a counter on the slow path. Measured on the reference dataset of NFR-PERF-01 in `docs/PERF.md`
+(`scripts/dev/perf_seed.py`): a cold summary is mostly the approvals source's permission checks.
 
 ## 12. Compatibility notes
 
