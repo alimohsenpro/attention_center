@@ -120,6 +120,13 @@ with sync_playwright() as p:
 	browser.close()
 ```
 
+Audio (measured by M4-T2): Playwright starts Chromium with `--autoplay-policy=no-user-gesture-required`, so
+every `play()` succeeds; pass `ignore_default_args=["--autoplay-policy=no-user-gesture-required"]` to get a
+browser that blocks sound until a gesture. `page.evaluate` and `wait_for_selector` run as user gestures and
+unlock audio, so a blocked-sound check must avoid them until it clicks (`page.mouse.click`), and read the page
+through console messages instead. `bench serve` alone has no socket server: `context.set_offline(True)` then
+`(False)` fires `online`, which makes the client refresh, without a gesture.
+
 ## CI compared with the sandbox
 
 | | CI (`.github/workflows/ci.yml`) | Sandbox |

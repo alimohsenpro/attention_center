@@ -9,6 +9,10 @@ export const ICONS = {
 	// Points to the inline end in left-to-right text; the stylesheet mirrors it.
 	chevron: svg('<path d="m8 5 5 5-5 5"/>'),
 	x: svg('<path d="m5 5 10 10M15 5 5 15"/>'),
+	// A speaker with a cross: the browser keeps the sound off.
+	soundOff: svg(
+		'<path d="M3.75 7.5h2.5L10 4.5v11l-3.75-3h-2.5Z"/><path d="m13 8 4 4m0-4-4 4"/>'
+	),
 	check: svg('<circle cx="10" cy="10" r="7.25"/><path d="m6.75 10.25 2.25 2.25 4.25-4.5"/>'),
 	alert: svg(
 		'<path d="M8.7 3.5a1.5 1.5 0 0 1 2.6 0l6 10.5a1.5 1.5 0 0 1-1.3 2.25H4a1.5 1.5 0 0 1-1.3-2.25Z"/><path d="M10 8v3M10 13.75v.01"/>'
