@@ -36,7 +36,8 @@ attention_center/                     Python package
   sources/
     approvals.py                      Workflow Action (python source)
     builtin.py                        definitions of the built-in sources
-  attention_center/doctype/           DocTypes (module "Attention Center")
+  attention_center/doctype/           DocTypes (module "Attention Center") with their form scripts
+  attention_center/workspace/         the managers' workspace
   public/js/attention_center/         client source (ES modules)
   public/js/attention_center.bundle.js          launcher entry (always loaded)
   public/js/attention_center_window.bundle.js   window entry (lazy)
@@ -68,10 +69,11 @@ title-cased English form and are translated.
 | `heartbeat_seconds` | Int | 300 | 60–3600 |
 | `summary_cache_ttl` | Int | 60 | seconds, 5–600 |
 | `page_size` | Int | 10 | 5–50 |
-| `hide_standard_bell` | Check | 0 | CSS-only, stock v15 navbar selector |
+| `hide_standard_bell` | Check | 0 | CSS-only, stock v15 navbar selector (§7.7) |
 
 Permissions: `System Manager`, `Attention Manager` read/write. Read through
-`frappe.get_cached_doc`. The four tone selects list every id in `tones.json`. Frappe stores a
+`frappe.get_cached_doc`. The four tone selects list every id in `tones.json`; the form shows them with
+their labels (§7.7). Frappe stores a
 Single's defaults once, at install (`frappe.installer.init_singles`); `after_migrate`
 (`install.py`) stores the default of every field that still has no stored value, so a field added
 by a later release does not read as empty on existing sites. The role `Attention Manager` ships
@@ -377,6 +379,7 @@ public/js/attention_center/
   util/keys.js        PURE: roving focus in the tab list, focus-trap wrap-around, the keys the window keeps from the desk
   util/guard.js       PURE: the guard every entry point runs through (§7.1)
   util/badge.js       PURE: summary -> launcher count text ("99+"), attention accent, unseen dot
+  util/bell.js        the <style> that hides the stock navbar bell when the settings ask for it (§7.7)
   util/title.js       "(N) " tab-title counter: PURE retitle + a <title> observer
   util/route.js  util/escape.js   PURE: desk-route validation and set_route arguments, HTML escaping
   util/dom.js         stylesheet adoption into the shadow root, element and button helpers
@@ -503,8 +506,35 @@ marks them.
   values for the other preferences (changed in another browser, or a write that failed there) does
   not overwrite them. A tab of another user ignores it. The launcher's collapse travels the same way.
 
-Admin configuration uses the standard desk forms of the two DocTypes plus a small form script
-for `Attention Source` (field visibility by type, "Test for my user").
+### 7.7 Admin desk [FR-SRC-02 AC2, FR-SET-01, FR-SET-03]
+
+Managers configure the app in the standard desk forms of the two DocTypes, which only System Manager and
+Attention Manager may open (their DocType permissions), with a form script each (`<doctype>.js` beside the
+DocType JSON; plain desk scripts, not modules of the client bundles).
+
+- Workspace `Attention Center` (module `Attention Center`, `roles`: Attention Manager, System Manager, so the
+  sidebar lists it for them only; `sequence_id` 30, after the core workspaces): shortcuts to the settings and to
+  the list of sources.
+- `Attention Center Settings`: the controller's `onload` sends `__onload.tones` (`[{value: id, label}]`, the
+  translated labels of `preferences.get_tones()`), and the form script sets them as the options of the four tone
+  selects, so the admin picks "Chime" rather than `chime`. The DocType's own options stay the ids of
+  `tones.json` (a test keeps them equal), because Frappe validates a Select against them on save. An intro says
+  that users get changed settings at their next page load: the client reads them from the boot.
+- `Attention Source`: the section of the other type is hidden by `depends_on` (in the DocType). `source_type` is
+  read-only, since a source made in the desk can only be a DocType Query [FR-SRC-03 AC2]; `is_system` and `app`
+  show for system sources only. On a system source every definition field (all but `ADMIN_FIELDS`) is read-only
+  and an intro names the declaring app [FR-SRC-01 AC2]; the server enforces both anyway (§3.2). "Test for my
+  user" shows on a saved source for users with a manager role; it refuses a form with unsaved changes, because
+  `test_source` runs the stored definition, then shows the counts, the first five items (title as a link to the
+  item in a new browser tab, sender, age, priority and overdue pills) and the duration, or a failure line when the
+  run's state is `error`. Every value from the source is escaped (`frappe.utils.escape_html`). The dialog says
+  that the test uses the manager's own permissions, so others may see other items.
+- `hide_standard_bell` (D-14): the launcher bundle, when it is evaluated and before the desk draws its navbar,
+  adds one `<style>` to the page's head with `.navbar .dropdown-notifications { display: none !important; }`
+  (`util/bell.js`), the selector of the bell in Frappe 15's `navbar.html`. It is the only style the app puts
+  outside its shadow root. A navbar that differs (a theme, Frappe 16) does not match and keeps its bell. The
+  rule is registered as a cleanup of the guard, so a failure of the client shows the bell again along with
+  removing the launcher.
 
 ## 8. Permission model summary
 

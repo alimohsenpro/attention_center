@@ -95,7 +95,7 @@ function items_html(items) {
 		(item) => `<tr>
 			<td><a href="${escape(item.route)}" target="_blank" rel="noopener">${escape(item.title)}</a></td>
 			<td>${escape(item.from_label || "")}</td>
-			<td>${item.date ? escape(frappe.datetime.str_to_user(item.date)) : ""}</td>
+			<td>${item.date ? escape(item_age(item.date)) : ""}</td>
 			<td>${priority_html(item)}</td>
 		</tr>`
 	);
@@ -109,6 +109,11 @@ function items_html(items) {
 			</tr></thead>
 			<tbody>${rows.join("")}</tbody>
 		</table>`;
+}
+
+// As the window shows it: the relative age, or the date when the age has no wording.
+function item_age(iso) {
+	return frappe.datetime.prettyDate(iso) || frappe.datetime.str_to_user(iso.replace("T", " "));
 }
 
 function priority_html(item) {
