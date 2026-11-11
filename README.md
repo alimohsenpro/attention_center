@@ -88,7 +88,7 @@ the Attention Center workspace). Users read the announcements they receive in th
 - **Audience:** All Desk Users, or the holders of any listed role and the members of any listed user group. A user outside the audience can neither see nor acknowledge it.
 - **Published** and the **Valid From** / **Valid To** window decide when it shows; publishing moves an empty or earlier start to the moment of publishing. Unpublish an announcement rather than delete it once users acknowledged it.
 - **Requires Acknowledgement:** until a user acknowledges it, it counts among their action items, with its priority, and shows in the window's **All** tab too. The report **Announcement Acknowledgements** (the **Who acknowledged** button on a saved announcement, or the workspace) lists who acknowledged and when and who has not yet, with Frappe's export; only System Managers and Attention Managers can open it.
-- **Immediate** announcements raise a toast that stays until it is closed, whether or not they ask for acknowledgement.
+- **Immediate** announcements raise a toast that stays until it is closed, whether or not they ask for acknowledgement. A user who opens the desk after one was published gets the toast then, at every page load until they look at the Announcements tab. A new announcement also shows the launcher's dot until then.
 - The body is rich text, sanitised on every save.
 
 ### Sources from your own app
