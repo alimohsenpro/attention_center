@@ -10,6 +10,8 @@ SOURCE = "Attention Source"
 APPROVALS = "attention_center.approvals"
 ASSIGNMENTS = "attention_center.assignments"
 NOTIFICATIONS = "attention_center.notifications"
+ANNOUNCEMENTS = "attention_center.announcements"
+BUILT_IN = (APPROVALS, ASSIGNMENTS, NOTIFICATIONS, ANNOUNCEMENTS)
 
 
 def add_note(title: str) -> str:
@@ -61,20 +63,18 @@ class TestRegistration(FrappeTestCase):
 		frappe.db.rollback()
 		registry.clear_visibility_cache()
 
-	def test_this_apps_hooks_declare_the_three_built_in_sources(self):
+	def test_this_apps_hooks_declare_the_built_in_sources(self):
 		declared = {
 			source["key"]: source["app"]
 			for source in registry.load_hook_sources()
 			if source["app"] == "attention_center"
 		}
 
-		self.assertEqual(declared, dict.fromkeys((APPROVALS, ASSIGNMENTS, NOTIFICATIONS), "attention_center"))
-		self.assertEqual(
-			[source["key"] for source in builtin.SOURCES], [APPROVALS, ASSIGNMENTS, NOTIFICATIONS]
-		)
+		self.assertEqual(declared, dict.fromkeys(BUILT_IN, "attention_center"))
+		self.assertEqual([source["key"] for source in builtin.SOURCES], list(BUILT_IN))
 
 	def test_the_sync_stores_them_as_enabled_system_sources_every_desk_user_sees(self):
-		frappe.db.delete(SOURCE, {"name": ("in", (APPROVALS, ASSIGNMENTS, NOTIFICATIONS))})
+		frappe.db.delete(SOURCE, {"name": ("in", BUILT_IN)})
 		user = make_user("desk.user@example.com", [make_desk_role("_Test Attention Desk User")])
 
 		registry.sync_sources()
@@ -83,23 +83,21 @@ class TestRegistration(FrappeTestCase):
 			list(
 				frappe.get_all(
 					SOURCE,
-					filters={"name": ("in", (APPROVALS, ASSIGNMENTS, NOTIFICATIONS))},
+					filters={"name": ("in", BUILT_IN)},
 					fields=["name", "kind", "source_type", "enabled", "is_system"],
 					order_by="name",
 					as_list=True,
 				)
 			),
 			[
+				(ANNOUNCEMENTS, "Action", "Python", 1, 1),
 				(APPROVALS, "Action", "Python", 1, 1),
 				(ASSIGNMENTS, "Action", "DocType Query", 1, 1),
 				(NOTIFICATIONS, "Info", "DocType Query", 1, 1),
 			],
 		)
 		visible = [source.key for source in registry.get_visible_sources(user)]
-		self.assertEqual(
-			[key for key in visible if key.startswith("attention_center.")],
-			[APPROVALS, ASSIGNMENTS, NOTIFICATIONS],
-		)
+		self.assertEqual([key for key in visible if key.startswith("attention_center.")], list(BUILT_IN))
 
 
 class TestAssignments(BuiltinSourceTestCase):

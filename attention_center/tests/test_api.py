@@ -34,6 +34,8 @@ ENDPOINTS = {
 	"set_preferences": {"prefs": {"volume": 10}},
 	"note_auto_opened": {},
 	"test_source": {"source": TODOS},
+	"acknowledge_announcement": {"announcement": "any"},
+	"get_announcement_receipts": {"announcement": "any"},
 }
 # The settings' defaults, which ApiTestCase sets.
 DEFAULT_PREFERENCES = {
@@ -198,7 +200,12 @@ class TestAccess(ApiTestCase):
 	def test_changes_are_accepted_over_post_only(self):
 		request = getattr(frappe.local, "request", None)
 		try:
-			for endpoint in (api.mark_seen, api.set_preferences, api.note_auto_opened):
+			for endpoint in (
+				api.mark_seen,
+				api.set_preferences,
+				api.note_auto_opened,
+				api.acknowledge_announcement,
+			):
 				with self.subTest(endpoint=endpoint.__name__):
 					frappe.local.request = frappe._dict(method="POST")
 					is_valid_http_method(endpoint)
