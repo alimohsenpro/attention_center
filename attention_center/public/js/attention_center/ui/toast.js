@@ -27,7 +27,7 @@ export function createToasts(root, { onOpen, safe, announce }) {
 	}
 
 	// `viewable`: the toast has a "View" action, and a click on it opens the window.
-	function create(id, sticky, viewable) {
+	function create(id, { sticky, viewable }) {
 		if (shown.size >= MAX_TOASTS) {
 			const drop = toastToDrop([...shown.values()], sticky);
 			if (!drop) return null;
@@ -72,7 +72,7 @@ export function createToasts(root, { onOpen, safe, announce }) {
 	// Shows the toast with this id, or updates it in place when it is still shown. A new toast that finds no room
 	// (toastToDrop) is not shown.
 	function show({ id, text, level, sticky, tab }) {
-		const toast = shown.get(id) ?? create(id, sticky, true);
+		const toast = shown.get(id) ?? create(id, { sticky, viewable: true });
 		if (!toast) return;
 		Object.assign(toast, { sticky, tab });
 		toast.node.dataset.level = level;
@@ -90,7 +90,7 @@ export function createToasts(root, { onOpen, safe, announce }) {
 	// Shows a notice that is no alert, such as the hint that the browser blocks the sound: no "View", and no
 	// timer, so that a user who was away still finds it; it goes when closed, clicked or dismissed.
 	function notice(id, text) {
-		const toast = shown.get(id) ?? create(id, false, false);
+		const toast = shown.get(id) ?? create(id, { sticky: false, viewable: false });
 		if (!toast) return;
 		toast.node.dataset.level = "normal";
 		toast.icon.innerHTML = ICONS.soundOff;
