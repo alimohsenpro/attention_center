@@ -479,6 +479,11 @@ export const WINDOW_STYLES = `
 	cursor: pointer;
 }
 
+/* The notice's surface 2 leaves green 500 at 4.45:1 in the dark theme; the underline still marks the link. */
+.notice .link-button {
+	color: var(--ac-ink);
+}
+
 .table-wrap {
 	overflow-x: auto;
 }
@@ -618,12 +623,15 @@ tr[data-overdue] time {
 	background: #d0574b;
 }
 
+/* Its own fill keeps its text on the surface when the row is hovered: green 500 on surface 2 reaches only 4.45:1
+   in the dark theme. */
 .open-link {
 	display: inline-flex;
 	padding-block: 2px;
 	padding-inline: 12px;
 	border: 1px solid var(--ac-link);
 	border-radius: var(--ac-radius-sm);
+	background: var(--ac-surface);
 	color: var(--ac-link);
 	font-weight: 600;
 	text-decoration: none;
@@ -633,7 +641,7 @@ tr[data-overdue] time {
 
 .open-link:hover {
 	background: var(--ac-link);
-	color: #ffffff;
+	color: var(--ac-surface);
 }
 
 .pager {
