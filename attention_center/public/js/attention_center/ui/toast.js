@@ -64,7 +64,8 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		return toast;
 	}
 
-	// Shows the toast with this id, or updates it in place when it is still shown.
+	// Shows the toast with this id, or updates it in place when it is still shown. A new toast that finds no room
+	// (toastToDrop) is not shown.
 	function show({ id, text, level, sticky, tab }) {
 		const toast = shown.get(id) ?? create(id, sticky);
 		if (!toast) return;
