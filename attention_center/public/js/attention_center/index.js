@@ -238,10 +238,10 @@ function alertOnNewItems(store, { launcher, toasts, sound, tabs, coalesceSeconds
 			const label = summary.sources.find((candidate) => candidate.key === source)?.label;
 			toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
 		}
-		const id = alertId(alerts, summary);
-		if (result.sound) return sound.play(result.sound, id);
+		const soundId = alertId(alerts, summary);
+		if (result.sound) return sound.play(result.sound, soundId);
 		// The burst already sounded for these alerts, so a tab that fetches them later stays silent too.
-		if (id) tabs.mark(id);
+		if (soundId) tabs.mark(soundId);
 	};
 }
 
