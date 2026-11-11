@@ -48,4 +48,17 @@ NOTIFICATIONS = {
 	"list_route": "/app/notification-log?read=0",
 }
 
-SOURCES = [APPROVALS, ASSIGNMENTS, NOTIFICATIONS]
+ANNOUNCEMENTS = {
+	"key": "attention_center.announcements",
+	"contract_version": 1,
+	"label": "Announcements",
+	"kind": "action",
+	"type": "python",
+	"get_count": "attention_center.sources.announcements.get_count",
+	"get_items": "attention_center.sources.announcements.get_items",
+	# No get_recipients: an announcement may address every desk user, so its changes are broadcast.
+	"watch_doctypes": ["Attention Announcement"],
+	"list_route": "/app/attention-announcement",
+}
+
+SOURCES = [APPROVALS, ASSIGNMENTS, NOTIFICATIONS, ANNOUNCEMENTS]

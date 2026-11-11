@@ -1,0 +1,68 @@
+{
+ "actions": [],
+ "autoname": "hash",
+ "creation": "2026-11-11 17:58:33.497708",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "announcement",
+  "user",
+  "acknowledged_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "announcement",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Announcement",
+   "options": "Attention Announcement",
+   "reqd": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "User",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "acknowledged_at",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Acknowledged At",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-11-11 17:58:51.006169",
+ "modified_by": "Administrator",
+ "module": "Attention Center",
+ "name": "Attention Announcement Receipt",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  },
+  {
+   "export": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Attention Manager"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "acknowledged_at",
+ "sort_order": "DESC",
+ "states": []
+}

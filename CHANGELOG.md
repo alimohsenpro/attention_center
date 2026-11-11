@@ -4,6 +4,17 @@ All notable changes to Attention Center. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Announcements (backend).** `Attention Announcement` (title, sanitised rich-text body, priority,
+  validity window, audience of all desk users, roles or user groups, optional acknowledgement) and
+  `Attention Announcement Receipt` (one per user and announcement). A built-in action source lists
+  the announcements a user receives; those awaiting the user's acknowledgement count as action items.
+  Endpoints `acknowledge_announcement` and, for managers, `get_announcement_receipts` (who
+  acknowledged and who has not). Desk users can open only the announcements they receive.
+
 ## 0.1.0 — 2026-11-11
 
 First release: the MVP of `docs/PRD.md`, every requirement marked 0.1.

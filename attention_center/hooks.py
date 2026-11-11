@@ -129,15 +129,15 @@ from attention_center.sources.builtin import SOURCES as attention_sources
 
 # Permissions
 # -----------
-# Permissions evaluated in scripted ways
+# Desk users read the announcements they receive, managers every announcement
 
-# permission_query_conditions = {
-# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
-# }
-#
-# has_permission = {
-# 	"Event": "frappe.desk.doctype.event.event.has_permission",
-# }
+permission_query_conditions = {
+	"Attention Announcement": "attention_center.attention_center.doctype.attention_announcement.attention_announcement.get_permission_query_conditions",
+}
+
+has_permission = {
+	"Attention Announcement": "attention_center.attention_center.doctype.attention_announcement.attention_announcement.has_permission",
+}
 
 # DocType Class
 # ---------------
