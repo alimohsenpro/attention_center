@@ -1,6 +1,7 @@
 """Smoke tests of the desk client in Chromium [FR-UI-09, FR-UI-10, NFR-A11Y-01]: the launcher and the window in
 English (left to right) and Arabic (right to left), in the light and the dark desk theme, opened and closed with
-the keyboard, and the three display modes.
+the keyboard, the three display modes, and the sticky toast of an immediate announcement published before the page
+loaded [FR-ANN-02].
 
 scripts/ci/run_tests.sh runs them with python3 after the backend tests. They are skipped, with the reason, when
 Playwright for Python or its Chromium is missing. Otherwise they build the app's assets, complete the site's setup
@@ -36,6 +37,7 @@ USER = f"ac-ui-{SUFFIX}@example.com"
 PASSWORD = secrets.token_urlsafe(18)
 ROLE = f"Attention UI Smoke {SUFFIX}"
 ITEM = "Check the sample request"
+ANNOUNCEMENT = "The sample office closes early today"
 TEXTS = {
 	"en": {"launcher": "Attention Center", "title": "What needs your attention", "open": "Open"},
 	"ar": {"launcher": "مركز الانتباه", "title": "ما يحتاج انتباهك", "open": "فتح"},
@@ -262,6 +264,40 @@ class TestDeskClient(unittest.TestCase):
 		mode.click()
 		expect(page.locator(".frame")).to_have_attribute("data-mode", "dialog")
 		expect(window).to_contain_text(ITEM)
+		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
+
+	def test_an_immediate_announcement_published_before_the_page_loads(self):
+		"""Its sticky toast shows when the page loads, until the Announcements tab was viewed [FR-ANN-02]."""
+		announcement = call(
+			"POST",
+			"/api/resource/Attention Announcement",
+			{
+				"title": ANNOUNCEMENT,
+				"priority": "Immediate",
+				"requires_acknowledgement": 0,
+				"published": 1,
+				"all_users": 0,
+				"roles": [{"role": ROLE}],
+			},
+		)
+		self.addCleanup(call, "DELETE", f"/api/resource/Attention Announcement/{announcement['name']}")
+		page, errors = self.open_desk("en", "light")
+		toast = page.locator(".toast[data-level='immediate']")
+		expect(toast).to_contain_text("New item in Announcements")
+		# Other toasts leave after 8 s.
+		page.wait_for_timeout(9_000)
+		expect(toast).to_be_visible()
+
+		with page.expect_response(lambda response: "attention_center.api.mark_seen" in response.url):
+			toast.locator(".toast-action").click()
+		expect(page.locator(".tab[aria-selected='true']")).to_contain_text("Announcements")
+		expect(page.locator("tbody tr").first).to_contain_text(ANNOUNCEMENT)
+
+		page.reload()
+		expect(page.locator(".launcher-count")).to_have_text("1")
+		# The toast would follow one more request.
+		page.wait_for_timeout(2_000)
+		expect(toast).to_have_count(0)
 		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
 
 
