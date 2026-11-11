@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { ANNOUNCEMENTS } from "../../attention_center/public/js/attention_center/util/announcements.js";
 import { badge } from "../../attention_center/public/js/attention_center/util/badge.js";
 
 function summary({ action = 0, attention = 0, info_new = 0, sources = [] }) {
@@ -54,6 +55,24 @@ const CASES = [
 		"only new info",
 		summary({ info_new: 3, sources: [source("info", 3)] }),
 		{ count: "", attention: false, unseen: true },
+	],
+	[
+		"a new announcement that asks for no acknowledgement",
+		summary({ sources: [{ ...source("action", 0), key: ANNOUNCEMENTS, new_since: 1 }] }),
+		{ count: "", attention: false, unseen: true },
+	],
+	[
+		"announcements all seen",
+		summary({
+			action: 1,
+			sources: [{ ...source("action", 1), key: ANNOUNCEMENTS, new_since: 0 }],
+		}),
+		{ count: "1", attention: false, unseen: false },
+	],
+	[
+		"new items in another action source",
+		summary({ action: 2, sources: [{ ...source("action", 2), new_since: 2 }] }),
+		{ count: "2", attention: false, unseen: false },
 	],
 ];
 

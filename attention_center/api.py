@@ -13,6 +13,7 @@ from frappe.permissions import is_system_user
 from frappe.utils import cint, now_datetime
 
 from attention_center.engine import preferences, registry, runner
+from attention_center.engine.contract import normalize_items
 from attention_center.permissions import is_manager
 from attention_center.sources import announcements
 
@@ -53,19 +54,9 @@ def get_items(source: str, start: int = 0, page_length: int | None = None) -> di
 	`page_length` defaults to the settings' page size and is clamped to 1..MAX_PAGE_LENGTH.
 	"""
 	user = _desk_user()
-	if start < 0:
-		frappe.throw(_("Start must be 0 or more."))
-	if page_length is None:
-		page_length = cint(_settings().page_size)
-	page_length = min(max(page_length, 1), MAX_PAGE_LENGTH)
-
-	# One item more than the page tells whether another page follows.
+	page_length = _page_length(start, page_length)
 	result = runner.run_items(_visible_source(user, source), user, start, page_length + 1)
-	return {
-		"state": result["state"],
-		"items": result["items"][:page_length],
-		"has_more": len(result["items"]) > page_length,
-	}
+	return _page(result["state"], result["items"], page_length)
 
 
 @frappe.whitelist(methods=["POST"])
@@ -136,6 +127,35 @@ def acknowledge_announcement(announcement: str) -> dict:
 
 
 @frappe.whitelist()
+def get_announcements_to_acknowledge(start: int = 0, page_length: int | None = None) -> dict:
+	"""The announcements awaiting the user's acknowledgement, the action items among the announcements source's items:
+	what the window's All tab lists of that source [FR-ANN-02]. Paged like get_items."""
+	user = _desk_user()
+	page_length = _page_length(start, page_length)
+	source = _visible_source(user, announcements.KEY)
+	items = announcements.get_items_to_acknowledge(user, start, page_length + 1)
+	return _page("ok", normalize_items(source.key, items), page_length)
+
+
+@frappe.whitelist()
+def get_unseen_announcements() -> dict:
+	"""How many announcements the user has not seen yet and how many of them are immediate: when a desk page loads,
+	the client raises the sticky toast of an immediate one [FR-ANN-02]."""
+	user = _desk_user()
+	source = _visible_source(user, announcements.KEY)
+	return announcements.unseen(user, preferences.get_watermarks(preferences.get_stored()).get(source.key))
+
+
+@frappe.whitelist()
+def get_announcement(announcement: str) -> dict:
+	"""An announcement the user receives, with its body and their acknowledgement, for the window's detail view
+	[FR-ANN-02, FR-ANN-03]."""
+	user = _desk_user()
+	_visible_source(user, announcements.KEY)
+	return announcements.detail(announcement)
+
+
+@frappe.whitelist()
 def get_announcement_receipts(announcement: str) -> dict:
 	"""For managers: who acknowledged an announcement and when, and who in its audience has not [FR-ANN-04]."""
 	user = _desk_user()
@@ -166,6 +186,20 @@ def _visible_source(user: str, key: str) -> frappe._dict:
 		if source.key == key:
 			return source
 	frappe.throw(_("This source is not available to you."), frappe.PermissionError)
+
+
+def _page_length(start: int, page_length: int | None) -> int:
+	"""Checks the start of a page; the length defaults to the settings' page size, clamped to 1..MAX_PAGE_LENGTH."""
+	if start < 0:
+		frappe.throw(_("Start must be 0 or more."))
+	if page_length is None:
+		page_length = cint(_settings().page_size)
+	return min(max(page_length, 1), MAX_PAGE_LENGTH)
+
+
+def _page(state: str, items: list[dict], page_length: int) -> dict:
+	"""A page from items fetched with one more than `page_length`: the one more tells whether another page follows."""
+	return {"state": state, "items": items[:page_length], "has_more": len(items) > page_length}
 
 
 def _summary_entry(source: frappe._dict, counts: dict) -> dict:

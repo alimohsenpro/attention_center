@@ -12,12 +12,17 @@ const DARK = ':host([data-theme="dark"])';
 // (--ac-link) are green 700 in the light theme and green 500 in the dark one.
 const BOTH = [
 	["ink", "surface", "window, toasts, rows, pager buttons, selects"],
-	["ink", "surface-2", "summary strip, settings note, tab counters, hovered rows, retry in a notice"],
+	[
+		"ink",
+		"surface-2",
+		"summary strip, settings note, tab counters, hovered rows, retry in a notice, acknowledgement",
+	],
 	["muted", "surface", "tabs, metadata, page label, loading and empty states, hints"],
-	["muted", "surface-2", "table header, error notice, metadata of a hovered row"],
+	["muted", "surface-2", "table header, error notice, metadata of a hovered row, acknowledgement hints"],
 	["gold-soft", "green-800", "launcher label"],
 	["gold-soft", "green-900", "hovered launcher label"],
-	["white", "green-800", "window title, start of the header"],
+	["white", "green-700", "Acknowledge button"],
+	["white", "green-800", "window title, start of the header, hovered Acknowledge button"],
 	["white", "green-900", "window title, end of the header"],
 	["green-900", "gold", "launcher counter"],
 	["green-900", "p-urgent", "urgent pills"],

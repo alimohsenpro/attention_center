@@ -14,6 +14,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.query_builder import Criterion, Order, Table
 from frappe.utils import cstr, get_fullname, now_datetime
+from frappe.utils.html_utils import sanitize_html
 
 from attention_center.engine import realtime
 from attention_center.engine.contract import COUNT_CAP
@@ -35,15 +36,38 @@ def get_count(user: str, since: datetime | None = None) -> dict:
 		"urgent": sum(row.priority == "Urgent" for row in waiting),
 		"immediate": sum(row.priority == "Immediate" for row in waiting),
 		"latest": rows[0].valid_from if rows else None,
-		"new_since": len(rows) if since is None else sum(row.valid_from > since for row in rows),
+		"new_since": len(_unseen(rows, user, since)),
 	}
+
+
+def unseen(user: str, since: datetime | None) -> dict:
+	"""How many announcements the user has not seen yet, and how many of them are immediate (§7.4)."""
+	rows = _unseen(received(user), user, since)
+	return {"count": len(rows), "immediate": sum(row.priority == "Immediate" for row in rows)}
+
+
+def _unseen(rows: list[frappe._dict], user: str, since: datetime | None) -> list[frappe._dict]:
+	"""Those published after the user last viewed the source (`since`), except the ones they acknowledged or wrote:
+	either way they have read it."""
+	return [
+		row
+		for row in rows
+		if (since is None or row.valid_from > since) and not row.acknowledged_at and row.owner != user
+	]
 
 
 def get_items(user: str, start: int, page_length: int) -> list[dict]:
 	"""Those awaiting acknowledgement first, then by priority; the sort is stable, so newest first within each."""
-	rows = sorted(
-		received(user), key=lambda row: (not awaits_acknowledgement(row), PRIORITY_RANK[row.priority])
-	)
+	return _page(received(user), start, page_length)
+
+
+def get_items_to_acknowledge(user: str, start: int, page_length: int) -> list[dict]:
+	"""The items awaiting the user's acknowledgement, their action items: what the window's All tab lists."""
+	return _page([row for row in received(user) if awaits_acknowledgement(row)], start, page_length)
+
+
+def _page(rows: list[frappe._dict], start: int, page_length: int) -> list[dict]:
+	rows = sorted(rows, key=lambda row: (not awaits_acknowledgement(row), PRIORITY_RANK[row.priority]))
 	return [_item(row) for row in rows[start : start + page_length]]
 
 
@@ -143,6 +167,32 @@ def acknowledge(name: str) -> datetime:
 	return receipt.acknowledged_at
 
 
+def detail(name: str) -> dict:
+	"""An announcement the session user receives, as the window shows it: with its body and their acknowledgement."""
+	rows = received(frappe.session.user, name)
+	if not rows:
+		frappe.throw(_("This announcement is not available to you."), frappe.PermissionError)
+	row = rows[0]
+	# received() has just found the announcement addressed to the user.
+	body, valid_to = frappe.db.get_value(ANNOUNCEMENT, name, ["body", "valid_to"])
+	return {
+		"name": row.name,
+		"title": row.title,
+		"priority": cstr(row.priority).lower(),
+		"from_label": get_fullname(row.owner),
+		"date": _iso(row.valid_from),
+		"valid_to": _iso(valid_to),
+		# Sanitised on save already; again here for a body written past the controller (an import, db_set).
+		"body": sanitize_html(body or "", linkify=True, always_sanitize=True),
+		"requires_acknowledgement": bool(row.requires_acknowledgement),
+		"acknowledged_at": _iso(row.acknowledged_at),
+	}
+
+
+def _iso(value: datetime | None) -> str | None:
+	return value.isoformat(timespec="seconds") if value else None
+
+
 def receipts(name: str) -> dict:
 	"""Who acknowledged the announcement and when, and who in its audience has not yet [FR-ANN-04].
 
@@ -165,7 +215,7 @@ def receipts(name: str) -> dict:
 				"user": row.user,
 				# Someone who acknowledged may have left the audience since.
 				"full_name": full_names.get(row.user) or get_fullname(row.user),
-				"acknowledged_at": row.acknowledged_at.isoformat(timespec="seconds"),
+				"acknowledged_at": _iso(row.acknowledged_at),
 			}
 			for row in acknowledged
 		],

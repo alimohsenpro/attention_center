@@ -149,6 +149,49 @@ test("recording the login auto-open is a write, queued behind the preference wri
 	assert.equal(await noted, null);
 });
 
+test("an acknowledgement is a write, queued behind the preference writes", async () => {
+	const server = fakeServer();
+	const api = createApi(server.call);
+
+	const collapse = api.setPreferences({ launcher_collapsed: true });
+	const acknowledged = api.acknowledgeAnnouncement("a1b2c3");
+	await settle();
+	assert.equal(server.requests.length, 1);
+
+	server.requests[0].resolve({});
+	await collapse;
+	await settle();
+	assert.deepEqual(
+		[server.requests[1].method, server.requests[1].args],
+		["attention_center.api.acknowledge_announcement", { announcement: "a1b2c3" }]
+	);
+	const answer = { announcement: "a1b2c3", acknowledged_at: "2026-11-10T10:00:00" };
+	server.requests[1].resolve(answer);
+	assert.equal(await acknowledged, answer);
+});
+
+test("an announcement, the page of those to acknowledge and those not seen are read with their arguments", async () => {
+	const server = fakeServer();
+	const api = createApi(server.call);
+
+	api.getAnnouncement("a1b2c3");
+	api.getAnnouncement("a1b2c3");
+	api.getAnnouncementsToAcknowledge(10, 10);
+	api.getUnseenAnnouncements();
+
+	assert.deepEqual(
+		server.requests.map((request) => [request.method, request.args]),
+		[
+			["attention_center.api.get_announcement", { announcement: "a1b2c3" }],
+			[
+				"attention_center.api.get_announcements_to_acknowledge",
+				{ start: 10, page_length: 10 },
+			],
+			["attention_center.api.get_unseen_announcements", {}],
+		]
+	);
+});
+
 // A fetch that records each request and gives every one the same answer.
 function fakeFetch(status, body) {
 	const requests = [];

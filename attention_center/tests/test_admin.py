@@ -85,10 +85,15 @@ class TestAdminDesk(FrappeTestCase):
 				pages = [page["name"] for page in get_workspace_sidebar_items()["pages"]]
 				self.assertEqual(WORKSPACE in pages, listed)
 
-	def test_the_workspace_leads_to_the_settings_and_the_sources(self):
+	def test_the_workspace_leads_to_the_settings_the_sources_the_announcements_and_their_receipts(self):
 		shortcuts = frappe.get_doc("Workspace", WORKSPACE).shortcuts
 
 		self.assertEqual(
 			[(shortcut.type, shortcut.link_to) for shortcut in shortcuts],
-			[("DocType", SETTINGS), ("DocType", SOURCE)],
+			[
+				("DocType", SETTINGS),
+				("DocType", SOURCE),
+				("DocType", "Attention Announcement"),
+				("Report", "Announcement Acknowledgements"),
+			],
 		)

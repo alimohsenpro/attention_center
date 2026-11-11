@@ -1,6 +1,7 @@
 """Smoke tests of the desk client in Chromium [FR-UI-09, FR-UI-10, NFR-A11Y-01]: the launcher and the window in
 English (left to right) and Arabic (right to left), in the light and the dark desk theme, opened and closed with
-the keyboard, and the three display modes.
+the keyboard, the three display modes, and the sticky toast of an immediate announcement published before the page
+loaded, which an acknowledgement stops [FR-ANN-02].
 
 scripts/ci/run_tests.sh runs them with python3 after the backend tests. They are skipped, with the reason, when
 Playwright for Python or its Chromium is missing. Otherwise they build the app's assets, complete the site's setup
@@ -9,6 +10,7 @@ one desk user with an assignment and a notification, deleted again at the end. S
 screenshot of each open window.
 """
 
+import json
 import os
 import secrets
 import socket
@@ -36,6 +38,8 @@ USER = f"ac-ui-{SUFFIX}@example.com"
 PASSWORD = secrets.token_urlsafe(18)
 ROLE = f"Attention UI Smoke {SUFFIX}"
 ITEM = "Check the sample request"
+ANNOUNCEMENT = "The sample office closes early today"
+ANNOUNCEMENT_TO_ACKNOWLEDGE = "Read the sample safety note"
 TEXTS = {
 	"en": {"launcher": "Attention Center", "title": "What needs your attention", "open": "Open"},
 	"ar": {"launcher": "مركز الانتباه", "title": "ما يحتاج انتباهك", "open": "فتح"},
@@ -120,6 +124,34 @@ def login(context, user: str, password: str) -> None:
 	response = context.post("/api/method/login", form={"usr": user, "pwd": password})
 	if not response.ok:
 		raise RuntimeError(f"{user} could not log in: HTTP {response.status}")
+
+
+def announce(test: unittest.TestCase, title: str, requires_acknowledgement: int) -> None:
+	"""An immediate announcement for the user's role, deleted with its receipts when the test ends."""
+	announcement = call(
+		"POST",
+		"/api/resource/Attention Announcement",
+		{
+			"title": title,
+			"priority": "Immediate",
+			"requires_acknowledgement": requires_acknowledgement,
+			"published": 1,
+			"all_users": 0,
+			"roles": [{"role": ROLE}],
+		},
+	)
+	test.addCleanup(call, "DELETE", f"/api/resource/Attention Announcement/{announcement['name']}")
+	# Cleanups run last in, first out: the receipts go before the announcement they link to.
+	test.addCleanup(delete_receipts, announcement["name"])
+
+
+def delete_receipts(announcement: str) -> None:
+	receipts = state["admin"].get(
+		"/api/resource/Attention Announcement Receipt",
+		params={"filters": json.dumps([["announcement", "=", announcement]])},
+	)
+	for receipt in receipts.json()["data"]:
+		call("DELETE", f"/api/resource/Attention Announcement Receipt/{receipt['name']}")
 
 
 def call(method: str, path: str, data: dict | None = None, missing_ok: bool = False) -> dict | None:
@@ -262,6 +294,55 @@ class TestDeskClient(unittest.TestCase):
 		mode.click()
 		expect(page.locator(".frame")).to_have_attribute("data-mode", "dialog")
 		expect(window).to_contain_text(ITEM)
+		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
+
+	def test_an_acknowledged_immediate_announcement_is_not_raised_again(self):
+		"""Acknowledged from "All", it raises no toast at the next page load and leaves no dot [FR-ANN-02, FR-ANN-03]."""
+		announce(self, ANNOUNCEMENT_TO_ACKNOWLEDGE, requires_acknowledgement=1)
+		page, errors = self.open_desk("en", "light")
+		toast = page.locator(".toast[data-level='immediate']")
+		expect(toast).to_contain_text("New item in Announcements")
+
+		page.locator(".launcher-main").click()
+		expect(page.locator(".tab[aria-selected='true']")).to_contain_text("All")
+		page.locator("tbody tr", has_text=ANNOUNCEMENT_TO_ACKNOWLEDGE).locator(".open-link").click()
+		page.locator(".acknowledgement .primary-button").click()
+		expect(page.locator(".acknowledgement")).to_contain_text("You acknowledged this announcement on")
+		toast.locator(".toast-close").click()
+		page.keyboard.press("Escape")
+		expect(page.locator(".window")).to_be_hidden()
+
+		page.reload()
+		expect(page.locator(".launcher-count")).to_have_text("1")
+		# The toast would follow one more request.
+		page.wait_for_timeout(2_000)
+		expect(toast).to_have_count(0)
+		page.locator(".launcher-main").click()
+		announcements_tab = page.locator(".tab", has_text="Announcements")
+		expect(announcements_tab).to_be_visible()
+		expect(announcements_tab.locator(".tab-dot")).to_have_count(0)
+		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
+
+	def test_an_immediate_announcement_published_before_the_page_loads(self):
+		"""Its sticky toast shows when the page loads, until the Announcements tab was viewed [FR-ANN-02]."""
+		announce(self, ANNOUNCEMENT, requires_acknowledgement=0)
+		page, errors = self.open_desk("en", "light")
+		toast = page.locator(".toast[data-level='immediate']")
+		expect(toast).to_contain_text("New item in Announcements")
+		# Other toasts leave after 8 s.
+		page.wait_for_timeout(9_000)
+		expect(toast).to_be_visible()
+
+		with page.expect_response(lambda response: "attention_center.api.mark_seen" in response.url):
+			toast.locator(".toast-action").click()
+		expect(page.locator(".tab[aria-selected='true']")).to_contain_text("Announcements")
+		expect(page.locator("tbody tr").first).to_contain_text(ANNOUNCEMENT)
+
+		page.reload()
+		expect(page.locator(".launcher-count")).to_have_text("1")
+		# The toast would follow one more request.
+		page.wait_for_timeout(2_000)
+		expect(toast).to_have_count(0)
 		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
 
 

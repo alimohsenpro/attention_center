@@ -81,12 +81,14 @@ One document per source (`/app/attention-source`).
 
 ### Attention Announcement
 
-Release 0.2 work in progress: the backend is in place, the window's Announcements tab and acknowledge
-button come next. One document per announcement (`/app/attention-announcement`).
+Release 0.2 work in progress. One document per announcement (`/app/attention-announcement`, also in
+the Attention Center workspace). Users read the announcements they receive in the window's
+**Announcements** tab, open one there and acknowledge it with one click.
 
 - **Audience:** All Desk Users, or the holders of any listed role and the members of any listed user group. A user outside the audience can neither see nor acknowledge it.
 - **Published** and the **Valid From** / **Valid To** window decide when it shows; publishing moves an empty or earlier start to the moment of publishing. Unpublish an announcement rather than delete it once users acknowledged it.
-- **Requires Acknowledgement:** until a user acknowledges it, it counts among their action items, with its priority. Who acknowledged and when is in **Attention Announcement Receipt**, which only System Managers and Attention Managers can read and export.
+- **Requires Acknowledgement:** until a user acknowledges it, it counts among their action items, with its priority, and shows in the window's **All** tab too. The report **Announcement Acknowledgements** (the **Who acknowledged** button on a saved announcement, or the workspace) lists who acknowledged and when and who has not yet, with Frappe's export; only System Managers and Attention Managers can open it.
+- **Immediate** announcements raise a toast that stays until it is closed, whether or not they ask for acknowledgement. A user who opens the desk after one was published gets the toast then, at every page load until they look at the Announcements tab or acknowledge it. A new announcement also shows the launcher's dot until then; one the user acknowledged or wrote is not new to them.
 - The body is rich text, sanitised on every save.
 
 ### Sources from your own app
@@ -100,7 +102,7 @@ python source.
 - **Capped counts.** A count reads the newest 100 rows of a source and shows "99+" beyond 99. An urgent or overdue row older than the newest 100 is not counted, and past 100 pending rows the rest of a list is in date order only.
 - **Freshness.** Counts are kept per user for the Summary Cache TTL. A change saved as a document refreshes the users concerned at once (with the socket server); a change made with a direct database write (for example Frappe's bell marking notifications read, or a bulk update by an app that does not call `nudge`) shows within the TTL after the next refresh. Without the socket server, a tab refreshes when it becomes visible and on the heartbeat.
 - **Time budget.** Each database statement of a source is stopped after 2 seconds; a source that fails or times out shows as an error in its tab for that user, and the other sources load.
-- **Announcements** count and list the newest 100 a user receives. A start or end time passing raises no event, so the announcement appears or leaves at the user's next refresh after the Summary Cache TTL.
+- **Announcements** count and list the newest 100 a user receives. A link in an announcement's body opens in a new browser tab. A start or end time passing raises no event, so the announcement appears or leaves at the user's next refresh after the Summary Cache TTL.
 - **Approvals** examine the newest 100 open Workflow Actions, with one read-permission check per document. Approvers are nudged without evaluating transition conditions, so a few more users than necessary may refresh.
 - **Sound** plays in one tab per browser, not once per user across devices. Browsers block sound until the user first interacts with the page; the launcher pulses and a hint explains it.
 - **Not included:** acting on items from the window (it opens the document), browser or OS notifications (they need HTTPS), email, SMS and mobile push, sources from other sites, and a full-page inbox.

@@ -10,6 +10,11 @@ import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
 import { STYLES } from "./ui/styles.js";
 import { createToasts, newItemsText } from "./ui/toast.js";
+import {
+	ANNOUNCEMENTS,
+	toastUnseenImmediate,
+	withAnnouncementPriority,
+} from "./util/announcements.js";
 import { badge } from "./util/badge.js";
 import { hideStandardBell } from "./util/bell.js";
 import { adoptStyles } from "./util/dom.js";
@@ -26,6 +31,8 @@ const SHORTCUT = "alt+shift+a";
 const SOUND_HINT = "sound-hint";
 // The toast id of the periodic reminder.
 const REMINDER_TOAST = "reminder";
+// The toast id of the immediate announcements not seen yet, raised when the page loads.
+const UNSEEN_ANNOUNCEMENTS_TOAST = "unseen-announcements";
 
 const guard = createGuard();
 const observe = (callback) => new MutationObserver(guard.safe(callback));
@@ -107,10 +114,19 @@ function start() {
 	store.onSummary(
 		guard.safe(
 			alertOnNewItems(store, {
+				api,
 				launcher,
 				toasts,
 				sound,
 				coalesceSeconds: boot.settings.coalesce_seconds,
+			})
+		)
+	);
+	store.onSummary(
+		guard.safe(
+			toastUnseenImmediate({
+				fetchUnseen: api.getUnseenAnnouncements,
+				show: (count) => showUnseenAnnouncements(store, toasts, count),
 			})
 		)
 	);
@@ -268,30 +284,54 @@ function setOpen(store, open, tab = null, newSince = null) {
 }
 
 // Pulses the launcher, and shows one toast and plays one sound per burst, when a summary brings new items (§7.4,
-// §7.5); the alert policy decides which items count, alerts/coalesce.js merges a burst, and of the browser's tabs
+// §7.5); the alert policy decides which items count, an announcement's alert takes the priority of the
+// announcements that arrived (util/announcements.js), alerts/coalesce.js merges a burst, and of the browser's tabs
 // one plays the sound.
-function alertOnNewItems(store, { launcher, toasts, sound, coalesceSeconds }) {
+function alertOnNewItems(store, { api, launcher, toasts, sound, coalesceSeconds }) {
 	let burst = null;
+	// The alerts of each summary are shown in the order of the summaries, although some wait for the announcements.
+	let ready = Promise.resolve();
 	return ({ previous, summary, actor }) => {
+		const context = { prefs: store.get().prefs, now: frappe.datetime.system_datetime() };
 		const alerts = newItemAlerts({
 			previous,
 			summary,
 			actor,
 			user: frappe.session.user,
-			prefs: store.get().prefs,
-			now: frappe.datetime.system_datetime(),
+			...context,
 		});
 		if (!alerts.length) return;
 		launcher.pulse();
-		const result = coalesce(burst, alerts, Date.now(), coalesceSeconds * 1000);
-		burst = result.burst;
-		if (result.toast) {
-			const { id, count, level, sticky, source } = result.toast;
-			const label = summary.sources.find((candidate) => candidate.key === source)?.label;
-			toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
-		}
-		return sound.alert(result.sound, alertId(alerts, summary));
+		const decided = ready.then(() =>
+			withAnnouncementPriority(alerts, previous, api.getItems, context)
+		);
+		ready = decided.catch(() => {});
+		return decided.then((final) => {
+			const result = coalesce(burst, final, Date.now(), coalesceSeconds * 1000);
+			burst = result.burst;
+			if (result.toast) {
+				const { id, count, level, sticky, source } = result.toast;
+				const label = summary.sources.find((candidate) => candidate.key === source)?.label;
+				toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
+			}
+			return sound.alert(result.sound, alertId(final, summary));
+		});
 	};
+}
+
+// The sticky toast, raised when the page loads, of the announcements the user has not seen yet when an immediate one
+// is among them (§7.4). No tone: it tells of no arrival, and would sound at every page load until the user looks.
+function showUnseenAnnouncements(store, toasts, count) {
+	const label = store
+		.get()
+		.summary.sources.find((source) => source.key === ANNOUNCEMENTS)?.label;
+	toasts.show({
+		id: UNSEEN_ANNOUNCEMENTS_TOAST,
+		level: "immediate",
+		sticky: true,
+		tab: ANNOUNCEMENTS,
+		text: newItemsText(count, label),
+	});
 }
 
 // Shows the periodic reminder (§7.4): a toast, which opens the window only when the user clicks it, and the
