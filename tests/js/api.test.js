@@ -170,6 +170,33 @@ test("an acknowledgement is a write, queued behind the preference writes", async
 	assert.equal(await acknowledged, answer);
 });
 
+test("a reminder is a write, queued behind the preference writes, and sends the item's title and document", async () => {
+	const server = fakeServer();
+	const api = createApi(server.call);
+	const reminder = {
+		remind_at: "2026-11-12 09:00:00",
+		title: "Call the supplier",
+		reference_doctype: "ToDo",
+		reference_name: "td-1",
+	};
+
+	const collapse = api.setPreferences({ launcher_collapsed: true });
+	const set = api.remindMeLater(reminder);
+	await settle();
+	assert.equal(server.requests.length, 1);
+
+	server.requests[0].resolve({});
+	await collapse;
+	await settle();
+	assert.deepEqual(
+		[server.requests[1].method, server.requests[1].args],
+		["attention_center.api.remind_me_later", reminder]
+	);
+	const answer = { reminder: "r1", remind_at: "2026-11-12T09:00:00" };
+	server.requests[1].resolve(answer);
+	assert.equal(await set, answer);
+});
+
 test("an announcement, the page of those to acknowledge and those not seen are read with their arguments", async () => {
 	const server = fakeServer();
 	const api = createApi(server.call);

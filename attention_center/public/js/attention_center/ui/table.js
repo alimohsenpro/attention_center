@@ -9,8 +9,9 @@ import { ICONS } from "./icons.js";
 //
 // `entries` are {source, item} pairs; `sourceLabel(key)` names a source; `format` has `age(iso)` and
 // `date(iso)`; `onOpenClick(event, entry)` handles a click on an item's "Open" link, whose href is the item's
-// route.
-export function renderTable(entries, { showSource, sourceLabel, format, onOpenClick }) {
+// route; `snooze(item, columns)` gives the item's "Remind me later" button, placed beside "Open", and the row under
+// the item's that it shows (ui/snooze.js).
+export function renderTable(entries, { showSource, sourceLabel, format, onOpenClick, snooze }) {
 	const table = document.createElement("table");
 	const head = table.createTHead().insertRow();
 	const headings = [
@@ -29,16 +30,16 @@ export function renderTable(entries, { showSource, sourceLabel, format, onOpenCl
 
 	const body = table.createTBody();
 	for (const entry of entries) {
-		body.append(
-			row(entry, showSource ? sourceLabel(entry.source) : null, format, onOpenClick)
-		);
+		const control = snooze(entry.item, head.cells.length);
+		const sourceName = showSource ? sourceLabel(entry.source) : null;
+		body.append(row(entry, sourceName, format, onOpenClick, control.toggle), control.row);
 	}
 	const wrapper = element("div", "table-wrap");
 	wrapper.append(table);
 	return wrapper;
 }
 
-function row(entry, sourceName, format, onClick) {
+function row(entry, sourceName, format, onClick, snoozeToggle) {
 	const { item } = entry;
 	const tr = element("tr");
 	tr.toggleAttribute("data-overdue", item.overdue);
@@ -53,7 +54,9 @@ function row(entry, sourceName, format, onClick) {
 
 	const from = element("td", "cell-from", item.from_label);
 	tr.append(title, type, from, dateCell(item.date, format));
-	tr.append(priorityCell(item, format), statusCell(item), openCell(entry, onClick));
+	const open = openCell(entry, onClick);
+	open.append(snoozeToggle);
+	tr.append(priorityCell(item, format), statusCell(item), open);
 	return tr;
 }
 
