@@ -23,18 +23,45 @@ for (const [count, label, expected] of TEXT_CASES) {
 	});
 }
 
-// [name, the toasts shown oldest first, the one that makes room].
+// [name, the toasts shown oldest first, those of them that are sticky, whether the newcomer is sticky, the one
+// that makes room or null when the newcomer is not shown].
 const DROP_CASES = [
-	["the oldest when none is sticky", ["a", "b", "c"], [], "a"],
-	["the oldest that is not sticky", ["a", "b", "c"], ["a"], "b"],
-	["the oldest that is not sticky, past several sticky ones", ["a", "b", "c"], ["a", "b"], "c"],
-	["the oldest when all are sticky", ["a", "b", "c"], ["a", "b", "c"], "a"],
+	["a new toast replaces the oldest when none is sticky", ["a", "b", "c"], [], false, "a"],
+	["a new toast replaces the oldest that is not sticky", ["a", "b", "c"], ["a"], false, "b"],
+	[
+		"a new toast replaces the oldest that is not sticky, past several sticky ones",
+		["a", "b", "c"],
+		["a", "b"],
+		false,
+		"c",
+	],
+	[
+		"a new sticky toast replaces the oldest that is not sticky",
+		["a", "b", "c"],
+		["a", "b"],
+		true,
+		"c",
+	],
+	[
+		"a new sticky toast replaces the oldest when all are sticky",
+		["a", "b", "c"],
+		["a", "b", "c"],
+		true,
+		"a",
+	],
+	[
+		"a new toast that is not sticky replaces none when all are sticky",
+		["a", "b", "c"],
+		["a", "b", "c"],
+		false,
+		null,
+	],
 ];
 
-for (const [name, ids, sticky, expected] of DROP_CASES) {
-	test(`a new toast beyond three replaces ${name}`, () => {
+for (const [name, ids, sticky, newcomerSticky, expected] of DROP_CASES) {
+	test(`beyond three toasts, ${name}`, () => {
 		const toasts = ids.map((id) => ({ id, sticky: sticky.includes(id) }));
 
-		assert.equal(toastToDrop(toasts).id, expected);
+		assert.equal(toastToDrop(toasts, newcomerSticky)?.id ?? null, expected);
 	});
 }

@@ -26,8 +26,12 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		shown.delete(id);
 	}
 
-	function create(id) {
-		if (shown.size >= MAX_TOASTS) dismiss(toastToDrop([...shown.values()]).id);
+	function create(id, sticky) {
+		if (shown.size >= MAX_TOASTS) {
+			const drop = toastToDrop([...shown.values()], sticky);
+			if (!drop) return null;
+			dismiss(drop.id);
+		}
 		const node = element("div", "toast");
 		const text = element("span", "toast-text");
 		const view = element("button", "toast-action", __("View", null, "Attention Center"));
@@ -62,7 +66,8 @@ export function createToasts(root, { onOpen, safe, announce }) {
 
 	// Shows the toast with this id, or updates it in place when it is still shown.
 	function show({ id, text, level, sticky, tab }) {
-		const toast = shown.get(id) ?? create(id);
+		const toast = shown.get(id) ?? create(id, sticky);
+		if (!toast) return;
 		Object.assign(toast, { sticky, tab });
 		toast.node.dataset.level = level;
 		toast.icon.innerHTML = level === "normal" ? ICONS.bell : ICONS.alert;
@@ -86,10 +91,11 @@ export function newItemsText(count, sourceLabel) {
 	return __("{0} new items in {1}", [count, sourceLabel]);
 }
 
-// The toast that makes room for a new one: the oldest that is not sticky, else the oldest. `toasts` are
-// {sticky} objects, oldest first.
-export function toastToDrop(toasts) {
-	return toasts.find((toast) => !toast.sticky) ?? toasts[0];
+// The toast that makes room for a new one: the oldest that is not sticky. When all are sticky, only a sticky
+// newcomer replaces the oldest; for any other the answer is null and the newcomer is not shown, so an
+// immediate toast stays until it is answered. `toasts` are {sticky} objects, oldest first.
+export function toastToDrop(toasts, newcomerSticky) {
+	return toasts.find((toast) => !toast.sticky) ?? (newcomerSticky ? toasts[0] : null);
 }
 
 function levelLabel(level) {
