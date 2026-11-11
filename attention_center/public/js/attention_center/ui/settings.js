@@ -232,8 +232,12 @@ export function createSettings(
 		});
 		return {
 			fieldset,
+			// Focus on a choice that is no longer checked (Do Not Disturb ended, or changed in another tab) moves to the
+			// checked one, through which Tab reaches the group.
 			check(value) {
+				const hadFocus = inputs.includes(fieldset.getRootNode().activeElement);
 				for (const input of inputs) input.checked = input.value === value;
+				if (hadFocus) inputs.find((input) => input.checked)?.focus();
 			},
 		};
 	}
