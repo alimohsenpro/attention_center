@@ -44,6 +44,7 @@ attention_center/                     Python package
   public/sounds/                      generated tones (.wav) + tones.json
   translations/ar.csv
   tests/                              cross-cutting backend tests (DocType tests live with DocTypes)
+examples/sample_app/                  a consumer app's hooks entries and python source (docs/PROVIDER_CONTRACT.md)
 scripts/                              ci/, dev/, pipeline/, sounds/
 docs/  pipeline/  .claude/skills/
 ```
@@ -563,6 +564,7 @@ follow the user's locale.
 ## 10. Test strategy [NFR-MAINT-01]
 
 - **Backend** (`bench --site <site> run-tests --app attention_center`): `FrappeTestCase` from `frappe.tests.utils` (Frappe 15). Each test creates its own users/roles/documents and cleans up via rollback. Mandatory coverage: source-definition validation; declarative executor (placeholders, mapping, caps, ordering); permission filtering with role permissions, a User Permission, and a `permission_query_conditions` fixture DocType created in the test; approvals with "role but no read permission"; targeting narrowing; fault isolation (a raising python source); cache TTL and invalidation; recipients and single nudge per request (`frappe.publish_realtime` patched); API input validation and "cannot read another user's data"; preferences validation; translation completeness.
+- **Sample consumer app** (`tests/test_examples.py`): `examples/sample_app` runs as if installed (importable from `examples/`, `frappe.get_installed_apps` patched to list it, so Frappe's own hook loader reads its `hooks.py` and `frappe.get_attr` resolves its paths) over a `Sample Request` DocType the test creates. It checks the sync, what each user sees through the API (with users who must not see the items), who is nudged, the guarded `nudge` call, and that the app imports nothing from `attention_center` [FR-SRC-03 AC1, AC3].
 - **Client pure logic**: `node --test tests/js/*.test.js` (Node 22 no longer takes a directory argument) for policy, coalescing, tab coordination (fake channel/storage/clock), reminder scheduling, escaping and route validation. No browser needed.
 - **UI smoke** (M6-T1): `tests/ui/test_smoke.py`, Python Playwright run by `scripts/ci/run_tests.sh` with the system `python3`, and skipped with the reason when Playwright or its Chromium is missing, as in CI. It completes the setup wizard if needed, serves the site with `bench serve`, creates a desk user with an assignment and a notification, and checks the launcher and the window in English (LTR) and Arabic (RTL), light and dark: the inline-end corner, translated texts, the theme's surface, `Esc` and the shortcut, and the three display modes right to left. `AC_UI_SCREENSHOTS=<dir>` keeps a screenshot of each window. Kept small.
 - **Contrast**: `tests/js/contrast.test.js` reads the tokens of `ui/styles.js` and checks every text colour on the background the stylesheets put it on, in both themes, against WCAG 2.1 AA (4.5:1) [NFR-A11Y-01].

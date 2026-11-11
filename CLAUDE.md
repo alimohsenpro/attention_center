@@ -13,6 +13,7 @@ built by an unattended pipeline; this file is what every working session needs t
 | `docs/DELIVERY_PLAN.md` | Task briefs and the definition of done. Read your task with `python3 scripts/pipeline/status.py brief <ID>` |
 | `docs/DECISIONS.md` | Decisions already taken by the product owner, and the log of agent decisions |
 | `docs/DESIGN_TOKENS.md` | Colours, spacing, component look |
+| `docs/PROVIDER_CONTRACT.md` | The source contract as consumer-app developers read it; change it with any change to the contract |
 | `docs/SANDBOX.md` | How the bench behaves in the cloud sandbox (written by task M0-T1) |
 | `pipeline/README.md` | How the pipeline works (for the human operator) |
 
