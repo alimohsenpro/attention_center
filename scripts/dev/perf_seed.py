@@ -358,7 +358,9 @@ COMMANDS = {"seed": seed, "measure": measure, "clear": clear}
 if __name__ == "__main__":
 	if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
 		sys.exit(f"usage: perf_seed.py {'|'.join(COMMANDS)}")
-	frappe.init(site=SITE, sites_path=str(BENCH_DIR / "sites"))
+	# Frappe opens its log files relative to the working directory, which must be the bench's sites.
+	os.chdir(BENCH_DIR / "sites")
+	frappe.init(site=SITE, sites_path=".")
 	frappe.connect()
 	try:
 		COMMANDS[sys.argv[1]]()
