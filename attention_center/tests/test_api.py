@@ -23,7 +23,8 @@ FEED = "test_app.feed"
 NUMBERS = "test_app.numbers"
 BROKEN = "test_app.broken"
 RESTRICTED = "test_app.restricted"
-KEYS = (TODOS, FEED, NUMBERS, BROKEN, RESTRICTED)
+ROLE_PROFILES = "test_app.role_profiles"
+KEYS = (TODOS, FEED, NUMBERS, BROKEN, RESTRICTED, ROLE_PROFILES)
 API = "attention_center.api"
 ENDPOINTS = {
 	"get_summary": {},
@@ -596,6 +597,39 @@ class TestTestSource(ApiTestCase):
 		add_todo(self.manager, "Second")
 
 		self.assertEqual(api.test_source(TODOS)["count"]["count"], 2, "not the count cached a moment ago")
+
+	def test_a_system_manager_may_test_a_source_too(self):
+		frappe.set_user("Administrator")
+		system_manager = make_user("api.system@example.com", ["System Manager"])
+		add_todo(system_manager, "System Manager's task")
+		frappe.set_user(system_manager)
+
+		self.assertEqual(api.test_source(TODOS)["count"]["count"], 1)
+
+	def test_a_manager_who_cannot_read_the_doctype_gets_an_error_and_no_rows(self):
+		frappe.set_user("Administrator")
+		frappe.get_doc(
+			{
+				"doctype": SOURCE,
+				"key": ROLE_PROFILES,
+				"label": "Role profiles",
+				"kind": "Info",
+				"reference_doctype": "Role Profile",
+				"title_field": "role_profile",
+				"date_field": "creation",
+				"filters_json": json.dumps([["role_profile", "=", "_Test Attention Profile"]]),
+			}
+		).insert()
+		frappe.get_doc({"doctype": "Role Profile", "role_profile": "_Test Attention Profile"}).insert()
+		self.assertEqual(api.test_source(ROLE_PROFILES)["count"]["count"], 1)
+		self.assertFalse(frappe.has_permission("Role Profile", "read", user=self.manager))
+		frappe.set_user(self.manager)
+
+		with self.assertLogs(frappe.logger("attention_center"), "ERROR"):
+			result = api.test_source(ROLE_PROFILES)
+
+		self.assertEqual((result["count"]["state"], result["count"]["count"]), ("error", 0))
+		self.assertEqual(result["items"], {"state": "error", "items": []})
 
 	def test_users_without_a_manager_role_are_refused(self):
 		with self.assertRaises(frappe.PermissionError):

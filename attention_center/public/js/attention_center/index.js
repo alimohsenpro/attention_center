@@ -11,6 +11,7 @@ import { createLauncher } from "./ui/launcher.js";
 import { STYLES } from "./ui/styles.js";
 import { createToasts, newItemsText } from "./ui/toast.js";
 import { badge } from "./util/badge.js";
+import { hideStandardBell } from "./util/bell.js";
 import { adoptStyles } from "./util/dom.js";
 import { createGuard } from "./util/guard.js";
 import { sharePreferences } from "./util/share_prefs.js";
@@ -30,6 +31,7 @@ const guard = createGuard();
 const observe = (callback) => new MutationObserver(guard.safe(callback));
 
 guard.run(() => {
+	hideBellIfSet(frappe.boot.attention_center);
 	if (frappe.app instanceof frappe.Application) start();
 	else $(document).one("app_ready", guard.safe(start));
 });
@@ -136,6 +138,13 @@ function start() {
 		network: window,
 		safe: guard.safe,
 	});
+}
+
+// Before the desk draws its navbar, so that the bell never shows [FR-SET-01]. A failure of the client shows it again:
+// the launcher that stands in for it is gone then.
+function hideBellIfSet(boot) {
+	if (boot?.enabled && boot.settings.hide_standard_bell)
+		guard.addCleanup(hideStandardBell(document));
 }
 
 function createHost() {
