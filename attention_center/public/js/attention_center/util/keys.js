@@ -20,6 +20,27 @@ export function roveIndex(key, index, count, rtl) {
 	}
 }
 
+// The keys the window keeps from the desk: their keydown stops in the window, in every display mode and on any of
+// its elements. The desk's handlers on `window` would act on the page behind it: Escape closes a form dialog or grid
+// row there, and on a list page the Up and Down arrows focus a list row and cancel what the key does in the window
+// (move a radio choice, the select, the slider, the tab list, or scroll). Every other key, the window's own
+// shortcut included, still reaches the desk.
+const KEPT_KEYS = new Set([
+	"Escape",
+	"ArrowUp",
+	"ArrowDown",
+	"ArrowLeft",
+	"ArrowRight",
+	"Home",
+	"End",
+	"PageUp",
+	"PageDown",
+]);
+
+export function keepsKey(key) {
+	return KEPT_KEYS.has(key);
+}
+
 // The focus trap of the dialog: the element Tab (or Shift+Tab when `backwards`) must focus, as an index
 // into its `count` focusable elements, or -1 to let the browser move focus. `index` is the focused element,
 // -1 when focus is on none of them.

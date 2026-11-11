@@ -1,7 +1,7 @@
 import { displayMode, nextDisplayMode } from "../util/display_mode.js";
 import { adoptStyles, element, textButton } from "../util/dom.js";
 import { createFeed } from "../util/feed.js";
-import { trapIndex } from "../util/keys.js";
+import { keepsKey, trapIndex } from "../util/keys.js";
 import { routeArguments } from "../util/route.js";
 import { createPreferenceEditor } from "../util/settings.js";
 import { ALL_TAB, buildTabs } from "../util/window_tabs.js";
@@ -260,10 +260,9 @@ export function createWindow(
 	}
 
 	function onKeydown(event) {
+		if (keepsKey(event.key)) event.stopPropagation();
 		if (event.key === "Escape") {
 			event.preventDefault();
-			// The desk's own Escape handler would close a form dialog or grid row behind the window.
-			event.stopPropagation();
 			close();
 		} else if (event.key === "Tab" && mode === "Dialog") {
 			const focusable = [...dialog.querySelectorAll(FOCUSABLE)].filter(
