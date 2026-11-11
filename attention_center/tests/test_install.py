@@ -57,9 +57,12 @@ class TestInstall(FrappeTestCase):
 		launcher = built_bundle("attention_center.bundle.js")
 
 		self.assertLessEqual(len(gzip.compress(launcher)), LAUNCHER_GZIP_LIMIT)
-		# assertNotIn would print the whole bundle.
+		# assertNotIn and assertIn would print the whole bundle.
 		self.assertFalse(WINDOW_TEXT in launcher, "the launcher bundle carries the window's code")
-		self.assertIn(WINDOW_TEXT, built_bundle("attention_center_window.bundle.js"))
+		self.assertTrue(
+			WINDOW_TEXT in built_bundle("attention_center_window.bundle.js"),
+			"the window bundle lacks the window's title",
+		)
 
 	def test_attention_manager_role_is_installed_with_desk_access(self):
 		role = frappe.db.get_value("Role", "Attention Manager", ["desk_access", "disabled"], as_dict=True)
