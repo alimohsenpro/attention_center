@@ -75,7 +75,10 @@ test("the first check starts the interval, and a reminder follows every interval
 	assert.deepEqual(times(tab), [2 * HOUR_MS + MINUTE_MS]);
 
 	browser.clock.advance(4 * HOUR_MS);
-	assert.deepEqual(times(tab), [2, 4, 6].map((hours) => hours * HOUR_MS + MINUTE_MS));
+	assert.deepEqual(
+		times(tab),
+		[2, 4, 6].map((hours) => hours * HOUR_MS + MINUTE_MS)
+	);
 	assert.deepEqual(
 		tab.reminders.map(({ level, toast, sticky, sound }) => ({ level, toast, sticky, sound })),
 		Array(3).fill({ level: "reminder", toast: true, sticky: false, sound: "reminder" })
@@ -129,10 +132,14 @@ for (const [name, specs, reminding] of TABS) {
 		assert.equal(all.length, 3);
 		for (let index = 1; index < all.length; index++) {
 			const gap = all[index] - all[index - 1];
-			assert.ok(gap >= 2 * HOUR_MS && gap <= 2 * HOUR_MS + 3 * MINUTE_MS, `gap of ${gap} ms`);
+			assert.ok(
+				gap >= 2 * HOUR_MS && gap <= 2 * HOUR_MS + 3 * MINUTE_MS,
+				`gap of ${gap} ms`
+			);
 		}
 		tabs.forEach((tab, index) => {
-			if (!reminding.includes(index)) assert.deepEqual(times(tab), [], `tab ${index} reminded`);
+			if (!reminding.includes(index))
+				assert.deepEqual(times(tab), [], `tab ${index} reminded`);
 		});
 	});
 }

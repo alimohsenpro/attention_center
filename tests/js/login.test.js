@@ -29,7 +29,11 @@ function summary(...sources) {
 			.reduce((total, candidate) => total + candidate[field], 0);
 	return {
 		sources,
-		totals: { action: sum("action", "count"), attention: 0, info_new: sum("info", "new_since") },
+		totals: {
+			action: sum("action", "count"),
+			attention: 0,
+			info_new: sum("info", "new_since"),
+		},
 	};
 }
 
@@ -90,7 +94,13 @@ const FIRST_SUMMARY = [
 	["a new login session with action items opens the window", false, true, WITH_ACTION, true],
 	["a session that had its auto-open already opens nothing", true, true, WITH_ACTION, false],
 	["a user who turned auto-open off sees nothing open", false, false, WITH_ACTION, false],
-	["without action items nothing opens, whatever information is new", false, true, INFO_ONLY, false],
+	[
+		"without action items nothing opens, whatever information is new",
+		false,
+		true,
+		INFO_ONLY,
+		false,
+	],
 ];
 
 for (const [name, autoOpened, autoOpen, first, opens] of FIRST_SUMMARY) {

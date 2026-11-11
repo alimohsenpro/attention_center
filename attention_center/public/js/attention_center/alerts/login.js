@@ -10,12 +10,12 @@
 export function autoOpenOnLogin({ shouldAutoOpen, store, open, onOpened }) {
 	return ({ previous, summary }) => {
 		const { prefs, ui } = store.get();
-		if (previous || !shouldAutoOpen || !prefs.auto_open_on_login || !summary.totals.action) {
-			return undefined;
-		}
+		const wanted =
+			!previous && shouldAutoOpen && prefs.auto_open_on_login && summary.totals.action > 0;
+		if (!wanted) return;
 		if (ui.open) {
 			onOpened();
-			return undefined;
+			return;
 		}
 		return open(newSinceLastLooked(summary)).then((opened) => {
 			if (opened) onOpened();
@@ -25,7 +25,7 @@ export function autoOpenOnLogin({ shouldAutoOpen, store, open, onOpened }) {
 
 // How many action items arrived since the user last looked at their sources. Read from the summary before the
 // window opens: opening it on "All" marks every action source seen, after which new_since reads 0.
-export function newSinceLastLooked(summary) {
+function newSinceLastLooked(summary) {
 	return summary.sources
 		.filter((source) => source.kind === "action")
 		.reduce((total, source) => total + source.new_since, 0);
