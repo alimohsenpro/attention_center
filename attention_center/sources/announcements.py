@@ -204,7 +204,7 @@ def _item(row: frappe._dict) -> dict:
 		"title": row.title,
 		"reference_doctype": ANNOUNCEMENT,
 		"reference_name": row.name,
-		"type_label": _("Announcement"),
+		"type_label": _("Announcement", context="Attention Center"),
 		"from_user": row.owner,
 		"date": row.valid_from,
 		"priority": cstr(row.priority).lower(),
@@ -212,5 +212,5 @@ def _item(row: frappe._dict) -> dict:
 	if awaits_acknowledgement(row):
 		item.update(status_label=_("Awaiting acknowledgement"), status_color="orange")
 	elif row.acknowledged_at:
-		item.update(status_label=_("Acknowledged"), status_color="green")
+		item.update(status_label=_("Acknowledged", context="Attention Center"), status_color="green")
 	return item
