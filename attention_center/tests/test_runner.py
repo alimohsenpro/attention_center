@@ -40,6 +40,10 @@ def count_of_the_wrong_shape(user: str) -> dict:
 	return {"count": "four"}
 
 
+def count_slowly(user: str) -> int:
+	return frappe.db.sql("select sleep(1)")[0][0]
+
+
 def items_of_the_user(user: str, start: int, page_length: int) -> list[dict]:
 	"""One more item than asked for, and one without a title."""
 	numbers = range(start, start + page_length + 1)
@@ -177,6 +181,22 @@ class TestRunner(FrappeTestCase):
 		self.assertEqual(items, {"state": "error", "items": []})
 		self.assertIn("ContractError: the count must be a whole number", logs.output[0])
 		self.assertIn("ContractError: source test_app.wrong_count returned dict", logs.output[1])
+
+	def test_a_python_source_whose_statement_overruns_the_budget_is_stopped_and_the_timeout_restored(self):
+		slow = self.python_source("test_app.slow", "count_slowly")
+		timeout_before = frappe.db.sql("select @@session.max_statement_time")[0][0]
+
+		with patch.object(runner, "TIME_BUDGET_SECONDS", 0.2), self.assertLogs(logger(), "ERROR") as logs:
+			started = time.monotonic()
+			result = runner.run_count(slow, self.user)
+			elapsed = time.monotonic() - started
+
+		self.assertEqual(result, {"state": "error", **NO_COUNTS})
+		self.assertLess(elapsed, 0.9, "the one-second sleep must have been interrupted")
+		self.assertRegex(
+			logs.output[0], rf"source test_app\.slow failed for {self.user} after \d+ ms: \w+Error$"
+		)
+		self.assertEqual(frappe.db.sql("select @@session.max_statement_time")[0][0], timeout_before)
 
 	def test_a_python_source_gets_the_user_the_page_and_the_watermark_it_accepts(self):
 		with_watermark = self.python_source("test_app.with_watermark", "count_with_watermark")
