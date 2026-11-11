@@ -40,6 +40,12 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		close.title = closeLabel;
 		const icon = element("span", "toast-icon");
 		node.append(icon, text, view, close);
+		// A press on a toast leaves focus where it was: inside the modal dialog, whose focus trap and Escape
+		// would stop working once the pressed button is removed, or in the field the user is typing in.
+		node.addEventListener(
+			"mousedown",
+			safe((event) => event.preventDefault())
+		);
 		node.addEventListener(
 			"click",
 			safe((event) => {
@@ -62,7 +68,7 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		toast.icon.innerHTML = level === "normal" ? ICONS.bell : ICONS.alert;
 		const label = levelLabel(level);
 		toast.text.replaceChildren();
-		if (label) toast.text.append(element("span", "pill", label));
+		if (label) toast.text.append(element("span", "toast-pill", label));
 		toast.text.append(text);
 		clearTimeout(toast.timer);
 		const leave = safe(() => dismiss(id));

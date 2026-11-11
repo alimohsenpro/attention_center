@@ -203,12 +203,14 @@ button {
 }
 
 /* Toasts stack above the launcher (its 16 px offset, its 44 px height and a 12 px gap), the newest nearest to
-   it. The stack itself takes no clicks, so the page between toasts stays usable. */
+   it. The stack itself takes no clicks, so the page between toasts stays usable. It sits over the open window
+   (1030), whose dialog backdrop or panel would otherwise hide a toast and take its click, and below the desk's
+   modals (1040/1050). */
 .toasts {
 	position: fixed;
 	inset-block-end: 72px;
 	inset-inline-end: 16px;
-	z-index: 1020;
+	z-index: 1035;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
@@ -262,7 +264,7 @@ button {
 	overflow-wrap: anywhere;
 }
 
-.toast .pill {
+.toast-pill {
 	display: inline-flex;
 	margin-inline-end: 6px;
 	padding-inline: 8px;
@@ -271,12 +273,12 @@ button {
 	font-weight: 600;
 }
 
-.toast[data-level="urgent"] .pill {
+.toast[data-level="urgent"] .toast-pill {
 	background: var(--ac-p-urgent);
 	color: var(--ac-green-900);
 }
 
-.toast[data-level="immediate"] .pill {
+.toast[data-level="immediate"] .toast-pill {
 	background: var(--ac-p-immediate);
 	color: #ffffff;
 }
