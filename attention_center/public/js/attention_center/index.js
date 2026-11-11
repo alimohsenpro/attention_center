@@ -61,7 +61,7 @@ function start() {
 		onToggleCollapsed: guard.safe(() => toggleCollapsed(store, api)),
 	});
 	const toasts = createToasts(shadow, { onOpen: openWindow, safe: guard.safe, announce });
-	const { sound, tabs } = createAlertSound(boot, { store, launcher, toasts });
+	const sound = createAlertSound(boot, { store, launcher, toasts });
 	frappe.ui.keys?.add_shortcut?.({
 		shortcut: SHORTCUT,
 		action: toggleWindow,
@@ -86,7 +86,6 @@ function start() {
 				launcher,
 				toasts,
 				sound,
-				tabs,
 				coalesceSeconds: boot.settings.coalesce_seconds,
 			})
 		)
@@ -192,6 +191,7 @@ function createAlertSound(boot, { store, launcher, toasts }) {
 		muted: Boolean(frappe.boot.user.mute_sounds),
 		now: () => frappe.datetime.system_datetime(),
 		claim: tabs.claim,
+		mark: tabs.mark,
 		page: window,
 		safe: guard.safe,
 		onLocked: (first) => {
@@ -207,7 +207,7 @@ function createAlertSound(boot, { store, launcher, toasts }) {
 		},
 		onUnlocked: () => toasts.dismiss(SOUND_HINT),
 	});
-	return { sound, tabs };
+	return sound;
 }
 
 // `tab` is the tab the window shows when it opens, or switches to when it is open already.
@@ -218,7 +218,7 @@ function setOpen(store, open, tab = null) {
 // Pulses the launcher, and shows one toast and plays one sound per burst, when a summary brings new items (§7.4,
 // §7.5); the alert policy decides which items count, alerts/coalesce.js merges a burst, and of the browser's tabs
 // one plays the sound.
-function alertOnNewItems(store, { launcher, toasts, sound, tabs, coalesceSeconds }) {
+function alertOnNewItems(store, { launcher, toasts, sound, coalesceSeconds }) {
 	let burst = null;
 	return ({ previous, summary, actor }) => {
 		const alerts = newItemAlerts({
@@ -238,10 +238,7 @@ function alertOnNewItems(store, { launcher, toasts, sound, tabs, coalesceSeconds
 			const label = summary.sources.find((candidate) => candidate.key === source)?.label;
 			toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
 		}
-		const soundId = alertId(alerts, summary);
-		if (result.sound) return sound.play(result.sound, soundId);
-		// The burst already sounded for these alerts, so a tab that fetches them later stays silent too.
-		if (soundId) tabs.mark(soundId);
+		return sound.alert(result.sound, alertId(alerts, summary));
 	};
 }
 

@@ -31,8 +31,8 @@ export function createTabs({
 	random = Math.random,
 	tab = newTabId(),
 }) {
-	// The claims other tabs announced on the channel, by alert id, with the time they were heard: the message may
-	// arrive before the claim's write to the storage does.
+	// The claims other tabs announced on the channel, by claim key (claimKey), with the time they were heard: the
+	// message may arrive before the claim's write to the storage does.
 	const heard = new Map();
 	channel.addEventListener(
 		"message",
@@ -43,27 +43,27 @@ export function createTabs({
 
 	const live = (at) => clock.now() - at < CLAIM_TTL_MS;
 
-	function stored(id) {
-		const claim = JSON.parse(storage.getItem(CLAIM_PREFIX + id));
+	function stored(key) {
+		const claim = JSON.parse(storage.getItem(CLAIM_PREFIX + key));
 		return claim && live(claim.at) ? claim : null;
 	}
 
-	function claimed(id) {
-		return (heard.has(id) && live(heard.get(id))) || Boolean(stored(id));
+	function claimed(key) {
+		return (heard.has(key) && live(heard.get(key))) || Boolean(stored(key));
 	}
 
-	function write(id) {
+	function write(key) {
 		forgetOld();
-		storage.setItem(CLAIM_PREFIX + id, JSON.stringify({ tab, at: clock.now() }));
-		channel.postMessage({ claim: id });
+		storage.setItem(CLAIM_PREFIX + key, JSON.stringify({ tab, at: clock.now() }));
+		channel.postMessage({ claim: key });
 	}
 
 	function forgetOld() {
-		for (const [id, at] of heard) if (!live(at)) heard.delete(id);
-		const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
-		for (const key of keys) {
-			if (key.startsWith(CLAIM_PREFIX) && !stored(key.slice(CLAIM_PREFIX.length))) {
-				storage.removeItem(key);
+		for (const [key, at] of heard) if (!live(at)) heard.delete(key);
+		const names = Array.from({ length: storage.length }, (_, index) => storage.key(index));
+		for (const name of names) {
+			if (name.startsWith(CLAIM_PREFIX) && !stored(name.slice(CLAIM_PREFIX.length))) {
+				storage.removeItem(name);
 			}
 		}
 	}
@@ -73,8 +73,9 @@ export function createTabs({
 	// short random delay when hidden, and plays only if its claim still stands once competing claims had time to
 	// land.
 	function claim(id) {
+		const key = claimKey(id);
 		return new Promise((resolve) => {
-			if (claimed(id)) {
+			if (claimed(key)) {
 				resolve(false);
 				return;
 			}
@@ -84,13 +85,13 @@ export function createTabs({
 					: HIDDEN_DELAY_MS + random() * HIDDEN_JITTER_MS;
 			clock.setTimeout(
 				safe(() => {
-					if (claimed(id)) {
+					if (claimed(key)) {
 						resolve(false);
 						return;
 					}
-					write(id);
+					write(key);
 					clock.setTimeout(
-						safe(() => resolve(stored(id)?.tab === tab)),
+						safe(() => resolve(stored(key)?.tab === tab)),
 						SETTLE_MS
 					);
 				}),
@@ -102,7 +103,8 @@ export function createTabs({
 	// Records alert `id` as handled without playing it: this tab's burst already sounded for it
 	// (alerts/coalesce.js), so a tab that fetches the same change later stays silent as well.
 	function mark(id) {
-		if (!claimed(id)) write(id);
+		const key = claimKey(id);
+		if (!claimed(key)) write(key);
 	}
 
 	return { claim, mark };
@@ -122,6 +124,17 @@ export function alertId(alerts, summary) {
 		})
 		.sort()
 		.join(" ");
+}
+
+// The key under which the tabs claim alert `id`: its FNV-1a hash, so that the storage, which outlives the
+// session and may be read by the next user of the browser, names no source and no count. A collision among the
+// few claims alive at once is negligible.
+function claimKey(id) {
+	let hash = 0x811c9dc5;
+	for (let index = 0; index < id.length; index++) {
+		hash = Math.imul(hash ^ id.charCodeAt(index), 0x01000193);
+	}
+	return (hash >>> 0).toString(36);
 }
 
 // crypto.randomUUID needs a secure context; the id only has to differ between the tabs of one browser.

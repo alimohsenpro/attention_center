@@ -2,12 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { alertId } from "../../attention_center/public/js/attention_center/alerts/tabs.js";
-import { fakeBrowser, toneUrl } from "./fakes.js";
+import { fakeBrowser, settle, toneUrl } from "./fakes.js";
 
 const ALERT = "app.tasks#3@2026-11-11 08:59:00";
+// The next change of the same source, which a tab whose burst already sounded coalesces.
+const LATER_ALERT = "app.tasks#4@2026-11-11 08:59:40";
 const OTHER_ALERT = "app.orders#1@2026-11-11 08:59:30";
 
 const playsPerTab = (tabs) => tabs.map((tab) => tab.played.length);
+const storedClaims = (tab) =>
+	Array.from({ length: tab.storage.length }, (_, index) => tab.storage.key(index));
+
+// A sound refused before the user's first gesture: the tab knows it is locked from then on.
+async function lockEarlier(browser, tab) {
+	tab.refusal = "NotAllowedError";
+	await browser.play([[tab, "standard", "app.notes#1@2026-11-11 08:50:00"]]);
+}
 
 // [name, [visibility, random()] of each tab, the tabs that may be the one that plays].
 const THREE_TABS = [
@@ -153,15 +163,91 @@ test("different alerts at the same moment each play once, in the visible tab", a
 	);
 });
 
-test("a tab that marks an alert plays nothing, and a tab that fetches the alert later stays silent", async () => {
+test("a tab whose burst sounded plays nothing for the burst's later alert, and a tab that fetches it later stays silent", async () => {
 	const browser = fakeBrowser();
-	const marking = browser.open({ visibility: "hidden" });
+	const sounding = browser.open({ visibility: "hidden" });
 	const late = browser.open({ visibility: "visible" });
 
-	marking.mark(ALERT);
-	await browser.play([[late, "standard", ALERT]]);
+	await browser.play([[sounding, "urgent", ALERT]], 2000);
+	await browser.play([[sounding, null, LATER_ALERT]], 1000);
+	await browser.play([[late, "urgent", LATER_ALERT]]);
 
-	assert.deepEqual(playsPerTab([marking, late]), [0, 0]);
+	assert.deepEqual(playsPerTab([sounding, late]), [1, 0]);
+});
+
+test("a tab whose burst another tab sounded keeps a later fetch of the burst's later alert silent too", async () => {
+	const browser = fakeBrowser();
+	const visible = browser.open({ visibility: "visible" });
+	const hidden = browser.open({ visibility: "hidden" });
+	const late = browser.open({ visibility: "hidden" });
+
+	await browser.play(
+		[
+			[visible, "urgent", ALERT],
+			[hidden, "urgent", ALERT],
+		],
+		2000
+	);
+	await browser.play([[hidden, null, LATER_ALERT]], 1000);
+	await browser.play([[late, "urgent", LATER_ALERT]]);
+
+	assert.deepEqual(playsPerTab([visible, hidden, late]), [1, 0, 0]);
+});
+
+// [name, options of the tab whose burst is silent, what happened to it before the burst]. Another tab, after a
+// longer broadcast wait (§6), fetches the whole burst in one summary and must play it.
+const SILENT_BURSTS = [
+	["User.mute_sounds is set", { muted: true }, async () => {}],
+	["Do Not Disturb lasts", { prefs: { dnd_until: "2026-11-11 10:00:00" } }, async () => {}],
+	["the volume is 0", { prefs: { volume: 0 } }, async () => {}],
+	["an earlier sound locked the tab", {}, lockEarlier],
+	[
+		"the browser refuses the burst's first sound",
+		{},
+		async (browser, tab) => (tab.refusal = "NotAllowedError"),
+	],
+];
+
+for (const [name, options, before] of SILENT_BURSTS) {
+	test(`a tab whose burst is silent because ${name} leaves the burst's later alert to another tab`, async () => {
+		const browser = fakeBrowser();
+		const silent = browser.open({ visibility: "visible", ...options });
+		const other = browser.open({ visibility: "hidden" });
+		await before(browser, silent);
+
+		await browser.play([[silent, "urgent", ALERT]], 2000);
+		await browser.play([[silent, null, LATER_ALERT]], 1000);
+		await browser.play([[other, "urgent", LATER_ALERT]]);
+
+		assert.deepEqual(playsPerTab([silent, other]), [0, 1]);
+	});
+}
+
+test("a tab unlocked by a gesture during its silent burst still leaves the burst's later alert to another tab", async () => {
+	const browser = fakeBrowser();
+	const unlocked = browser.open({ visibility: "visible" });
+	const other = browser.open({ visibility: "hidden" });
+	await lockEarlier(browser, unlocked);
+
+	await browser.play([[unlocked, "urgent", ALERT]], 2000);
+	unlocked.refusal = null;
+	unlocked.page.dispatchEvent(new Event("pointerup"));
+	await settle();
+	await browser.play([[unlocked, null, LATER_ALERT]], 1000);
+	await browser.play([[other, "urgent", LATER_ALERT]]);
+
+	assert.equal(unlocked.unlocks, 1);
+	assert.deepEqual(playsPerTab([unlocked, other]), [0, 1]);
+});
+
+test("a summary whose alerts play no sound records no claim", async () => {
+	const browser = fakeBrowser();
+	const tab = browser.open();
+
+	await browser.play([[tab, "urgent", ALERT]]);
+	await browser.play([[tab, null, ""]]);
+
+	assert.equal(storedClaims(tab).length, 1);
 });
 
 test("a claim is forgotten after 30 s and removed from the storage at the next claim", async () => {
@@ -172,10 +258,20 @@ test("a claim is forgotten after 30 s and removed from the storage at the next c
 	await browser.play([[tab, "standard", ALERT]], 30000);
 	await browser.play([[late, "standard", OTHER_ALERT]]);
 
-	assert.deepEqual(
-		Array.from({ length: late.storage.length }, (_, index) => late.storage.key(index)),
-		[`attention_center:claim:${OTHER_ALERT}`]
-	);
+	assert.equal(storedClaims(late).length, 1);
+});
+
+test("the claims left in the storage name no source, count or date", async () => {
+	const browser = fakeBrowser();
+	const tab = browser.open();
+
+	await browser.play([[tab, "standard", ALERT]]);
+
+	const claims = storedClaims(tab);
+	assert.equal(claims.length, 1);
+	for (const text of [...claims, ...claims.map((name) => tab.storage.getItem(name))]) {
+		assert.doesNotMatch(text, /app\.tasks|#3|2026/);
+	}
 });
 
 const source = (key, count, latest) => ({

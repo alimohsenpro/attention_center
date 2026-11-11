@@ -204,7 +204,8 @@ test("a gesture the browser does not count locks the tab again at the next sound
 	tab.refusal = "NotAllowedError";
 	await browser.play([[tab, "standard", "a"]]);
 
-	// Escape: the muted tone plays, as it always does, but audible ones are still refused.
+	// Escape, in a browser that plays a muted tone at any time: the unlock succeeds, but audible tones are still
+	// refused.
 	tab.page.dispatchEvent(new Event("keydown"));
 	await settle();
 	await browser.play([[tab, "standard", "b"]]);
@@ -223,8 +224,9 @@ test("an unlock that fails waits for the next gesture", async () => {
 	tab.refusal = "NotAllowedError";
 	await browser.play([[tab, "standard", "a"]]);
 
+	// Escape in Chromium, which refuses the muted tone too until a gesture it counts.
 	tab.mutedRefusal = "NotAllowedError";
-	tab.page.dispatchEvent(new Event("pointerup"));
+	tab.page.dispatchEvent(new Event("keydown"));
 	await settle();
 	assert.equal(tab.unlocks, 0);
 

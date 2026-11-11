@@ -134,7 +134,6 @@ export function fakeBrowser({ storageLatencyMs = 0, channelLatencyMs = 1 } = {})
 				random: () => random,
 				tab: tab.id,
 			});
-			tab.mark = tabs.mark;
 			tab.sound = createSound({
 				tones: TONES,
 				settings,
@@ -142,6 +141,7 @@ export function fakeBrowser({ storageLatencyMs = 0, channelLatencyMs = 1 } = {})
 				muted,
 				now: () => NOW,
 				claim: tabs.claim,
+				mark: tabs.mark,
 				page: tab.page,
 				safe: (fn) => fn,
 				onLocked: (first) => tab.locks.push(first),
@@ -150,9 +150,10 @@ export function fakeBrowser({ storageLatencyMs = 0, channelLatencyMs = 1 } = {})
 			});
 			return tab;
 		},
-		// Starts the plays, lets the tabs' timers run for `ms` and waits until every play has ended.
+		// Hands each tab the alerts of a summary as [tab, role, alert id], the role null when the tab's burst already
+		// sounded; lets the tabs' timers run for `ms` and waits until every sound has ended.
 		async play(plays, ms = 1000) {
-			const started = plays.map(([tab, role, id]) => tab.sound.play(role, id));
+			const started = plays.map(([tab, role, id]) => tab.sound.alert(role, id));
 			clock.advance(ms);
 			await Promise.all(started);
 		},
