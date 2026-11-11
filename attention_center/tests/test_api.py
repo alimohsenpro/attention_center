@@ -23,8 +23,8 @@ FEED = "test_app.feed"
 NUMBERS = "test_app.numbers"
 BROKEN = "test_app.broken"
 RESTRICTED = "test_app.restricted"
-ERROR_LOGS = "test_app.error_logs"
-KEYS = (TODOS, FEED, NUMBERS, BROKEN, RESTRICTED, ERROR_LOGS)
+ROLE_PROFILES = "test_app.role_profiles"
+KEYS = (TODOS, FEED, NUMBERS, BROKEN, RESTRICTED, ROLE_PROFILES)
 API = "attention_center.api"
 ENDPOINTS = {
 	"get_summary": {},
@@ -611,25 +611,22 @@ class TestTestSource(ApiTestCase):
 		frappe.get_doc(
 			{
 				"doctype": SOURCE,
-				"key": ERROR_LOGS,
-				"label": "Error logs",
+				"key": ROLE_PROFILES,
+				"label": "Role profiles",
 				"kind": "Info",
-				"reference_doctype": "Error Log",
-				"title_field": "method",
+				"reference_doctype": "Role Profile",
+				"title_field": "role_profile",
 				"date_field": "creation",
-				"filters_json": json.dumps([["method", "=", "_Test attention error"]]),
+				"filters_json": json.dumps([["role_profile", "=", "_Test Attention Profile"]]),
 			}
 		).insert()
-		frappe.get_doc({"doctype": "Error Log", "method": "_Test attention error"}).insert(
-			ignore_permissions=True
-		)
-		self.assertTrue(frappe.has_permission("Error Log", "read", user="Administrator"))
-		self.assertEqual(api.test_source(ERROR_LOGS)["count"]["count"], 1)
-		self.assertFalse(frappe.has_permission("Error Log", "read", user=self.manager))
+		frappe.get_doc({"doctype": "Role Profile", "role_profile": "_Test Attention Profile"}).insert()
+		self.assertEqual(api.test_source(ROLE_PROFILES)["count"]["count"], 1)
+		self.assertFalse(frappe.has_permission("Role Profile", "read", user=self.manager))
 		frappe.set_user(self.manager)
 
 		with self.assertLogs(frappe.logger("attention_center"), "ERROR"):
-			result = api.test_source(ERROR_LOGS)
+			result = api.test_source(ROLE_PROFILES)
 
 		self.assertEqual((result["count"]["state"], result["count"]["count"]), ("error", 0))
 		self.assertEqual(result["items"], {"state": "error", "items": []})
