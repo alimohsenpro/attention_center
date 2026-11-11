@@ -9,9 +9,9 @@ builds the dataset and takes every number below; run it again after a change tha
 | Requirement | Target | Measured | |
 |---|---|---|---|
 | NFR-PERF-01, warm | p95 ≤ 200 ms | p95 ≤ 10 ms | met |
-| NFR-PERF-01, cold | p95 ≤ 800 ms | p95 ≤ 195 ms; ≤ 544 ms even after `bench clear-cache` | met |
+| NFR-PERF-01, cold | p95 ≤ 800 ms | p95 ≤ 199 ms; ≤ 559 ms even after `bench clear-cache` | met |
 | NFR-PERF-02, launcher bundle | ≤ 25 KB gzipped | 10.5 KB; the window's 12.2 KB load on first open | met |
-| NFR-PERF-02, desk boot | no blocking request | no request; the app's part of the boot takes ≤ 1.1 ms (p95) | met |
+| NFR-PERF-02, desk boot | no blocking request | no request; the app's part of the boot takes under 1 ms (p95) | met |
 | NFR-PERF-03 | capped queries, a time budget | 100 rows per count query; every statement of every source stopped after 2 s | met |
 | FR-RT-01 AC1 | O(1) for an unwatched DocType | 7 µs per event, no query, no Redis round trip | met |
 
@@ -58,19 +58,19 @@ checks read permission on each (§4.5). The rows are bulk inserts, which raise n
 
 | Measured | n | p50 ms | p95 ms (runs 1, 2, 3) | max ms |
 |---|---|---|---|---|
-| `frappe.auth.get_logged_user` (Frappe's request overhead), warm | 100 | 5.9 | 7.5, 7.4, 8.3 | 10.6 |
-| `get_summary`, warm | 100 | 6.8 | 8.6, 9.4, 10.3 | 10.0 |
-| `get_summary`, cold: no cached count or visible source | 50 | 149 | 189, 178, 179 | 191 |
-| `get_summary`, cold, the user's Frappe caches dropped too (as after a role change) | 50 | 158 | 195, 187, 194 | 203 |
-| `get_summary` after `bench clear-cache`: the whole site cache dropped | 50 | 437 | 544, 542, 516 | 592 |
-| `get_items` approvals, first page of 10 | 30 | 42 | 57, 56, 60 | 71 |
-| `get_items` assignments, first page of 10 | 30 | 17 | 22, 25, 26 | 30 |
-| `get_items` notifications, first page of 10 | 30 | 12 | 15, 16, 18 | 20 |
-| `run_count` approvals, in process, not cached | 20 | 99 | 126, 133, 139 | 134 |
-| `run_count` assignments, in process, not cached | 20 | 8.1 | 10.8, 13.0, 12.3 | 13.6 |
-| `run_count` notifications, in process, not cached | 20 | 2.9 | 4.0, 5.4, 5.3 | 5.8 |
-| `extend_bootinfo`, in process | 100 | 0.65 | 0.93, 0.97, 1.11 | 1.70 |
-| `on_doc_event` on an unwatched DocType, in process, per event (10 000 events a run) | 20 | 0.0066 | 0.013, 0.008, 0.007 | 0.014 |
+| `frappe.auth.get_logged_user` (Frappe's request overhead), warm | 100 | 6.1 | 9.3, 6.0, 6.6 | 12.0 |
+| `get_summary`, warm | 100 | 6.6 | 9.2, 7.1, 8.3 | 13.0 |
+| `get_summary`, cold: no cached count or visible source | 50 | 164 | 190, 157, 166 | 205 |
+| `get_summary`, cold, the user's Frappe caches dropped too (as after a role change) | 50 | 164 | 199, 182, 183 | 212 |
+| `get_summary` after `bench clear-cache`: the whole site cache dropped | 50 | 459 | 559, 432, 504 | 596 |
+| `get_items` approvals, first page of 10 | 30 | 43 | 63, 56, 59 | 63 |
+| `get_items` assignments, first page of 10 | 30 | 17 | 20, 17, 19 | 20 |
+| `get_items` notifications, first page of 10 | 30 | 9.6 | 13, 14, 14 | 14 |
+| `run_count` approvals, in process, not cached | 20 | 101 | 123, 117, 128 | 130 |
+| `run_count` assignments, in process, not cached | 20 | 6.9 | 7.9, 8.2, 8.8 | 8.3 |
+| `run_count` notifications, in process, not cached | 20 | 2.9 | 5.4, 3.2, 3.7 | 7.8 |
+| `extend_bootinfo`, in process | 100 | 0.54 | 0.73, 0.69, 0.70 | 1.40 |
+| `on_doc_event` on an unwatched DocType, in process, per event (10 000 events a run) | 20 | 0.0066 | 0.0067, 0.0074, 0.0079 | 0.0067 |
 
 What the rows mean:
 
@@ -85,13 +85,13 @@ What the rows mean:
 
 ## Where the time goes
 
-- A cold summary is mostly the approvals source: about 100 to 140 ms for its 100 document loads and
-  permission checks, against 3 to 13 ms for each declarative source. The cost grows with the
+- A cold summary is mostly the approvals source: about 95 to 130 ms for its 100 document loads and
+  permission checks, against 3 to 9 ms for each declarative source. The cost grows with the
   permission hooks of the DocTypes under workflow, and is paid once per user per TTL (§11).
-- A warm summary costs 1 to 2 ms more than Frappe's lightest endpoint: one preference row, the
+- A warm summary costs about 1 ms more than Frappe's lightest endpoint: one preference row, the
   cached settings and visible sources, and one Redis read per source.
 - The window's pages (`get_items`) are not cached; their worst first page, approvals, answers within
-  60 ms (p95).
+  65 ms (p95).
 
 ## NFR-PERF-02: bundles and boot
 
