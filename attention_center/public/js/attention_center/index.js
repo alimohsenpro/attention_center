@@ -1,8 +1,11 @@
+import { coalesce } from "./alerts/coalesce.js";
+import { newItemAlerts } from "./alerts/policy.js";
 import { createApi, createTransport } from "./api.js";
 import { startRefreshLoop } from "./realtime.js";
 import { createStore } from "./store.js";
 import { createLauncher } from "./ui/launcher.js";
 import { STYLES } from "./ui/styles.js";
+import { createToasts, newItemsText } from "./ui/toast.js";
 import { badge } from "./util/badge.js";
 import { adoptStyles } from "./util/dom.js";
 import { createGuard } from "./util/guard.js";
@@ -53,6 +56,7 @@ function start() {
 		onOpen: toggleWindow,
 		onToggleCollapsed: guard.safe(() => toggleCollapsed(store, api)),
 	});
+	const toasts = createToasts(shadow, { onOpen: openWindow, safe: guard.safe, announce });
 	frappe.ui.keys?.add_shortcut?.({
 		shortcut: SHORTCUT,
 		action: toggleWindow,
@@ -71,6 +75,15 @@ function start() {
 	});
 	store.subscribe(render);
 	render(store.get());
+	store.onSummary(
+		guard.safe(
+			alertOnNewItems(store, {
+				launcher,
+				toasts,
+				coalesceSeconds: boot.settings.coalesce_seconds,
+			})
+		)
+	);
 
 	// The first summary is fetched after the boot, never during it [NFR-PERF-02].
 	startRefreshLoop({
@@ -109,7 +122,7 @@ function mirrorPageAttributes(host) {
 	guard.addCleanup(() => observer.disconnect());
 }
 
-// The polite live region through which the window, and later the alerts, speak to screen readers [FR-UI-08].
+// The polite live region through which the window and the alerts speak to screen readers [FR-UI-08].
 function createLiveRegion(shadow) {
 	const region = document.createElement("div");
 	region.className = "visually-hidden";
@@ -122,17 +135,18 @@ function createLiveRegion(shadow) {
 	};
 }
 
-// Opens the window, loading its bundle on the first call [NFR-PERF-02]. The bundle is added as a <script>
-// rather than through frappe.require, which freezes the desk while it loads and never unfreezes it when the
-// request fails. A bundle that does not load is like a failed request: the next click tries again.
+// Opens the window on a tab (null for "All"), loading its bundle on the first call [NFR-PERF-02]. The bundle
+// is added as a <script> rather than through frappe.require, which freezes the desk while it loads and never
+// unfreezes it when the request fails. A bundle that does not load is like a failed request: the next click
+// tries again.
 function windowOpener(shadow, options) {
 	let ready = null;
-	return () => {
+	return (tab = null) => {
 		ready ??= loadScript(frappe.boot.assets_json?.[WINDOW_BUNDLE]).then(
 			guard.safe(() => window.attention_center_window.createWindow(shadow, options))
 		);
 		ready.then(
-			guard.safe(() => setOpen(options.store, true)),
+			guard.safe(() => setOpen(options.store, true, tab)),
 			() => (ready = null)
 		);
 	};
@@ -158,8 +172,33 @@ function loadScript(src) {
 	});
 }
 
-function setOpen(store, open) {
-	store.set({ ui: { ...store.get().ui, open } });
+// `tab` is the tab the window shows when it opens, or switches to when it is open already.
+function setOpen(store, open, tab = null) {
+	store.set({ ui: { ...store.get().ui, open, tab } });
+}
+
+// Pulses the launcher and shows one toast per burst when a summary brings new items (§7.4); the alert policy
+// decides which items count, alerts/coalesce.js merges a burst.
+function alertOnNewItems(store, { launcher, toasts, coalesceSeconds }) {
+	let burst = null;
+	return ({ previous, summary, actor }) => {
+		const alerts = newItemAlerts({
+			previous,
+			summary,
+			actor,
+			user: frappe.session.user,
+			prefs: store.get().prefs,
+			now: frappe.datetime.system_datetime(),
+		});
+		if (!alerts.length) return;
+		launcher.pulse();
+		const result = coalesce(burst, alerts, Date.now(), coalesceSeconds * 1000);
+		burst = result.burst;
+		if (!result.toast) return;
+		const { id, count, level, sticky, source } = result.toast;
+		const label = summary.sources.find((candidate) => candidate.key === source)?.label;
+		toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
+	};
 }
 
 function toggleCollapsed(store, api) {

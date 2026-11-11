@@ -188,6 +188,150 @@ button {
 	transform: none;
 }
 
+/* One gold ring on new items; the reduced-motion rule below turns it off. */
+.launcher[data-pulse] .launcher-main {
+	animation: ac-pulse 1200ms ease-out;
+}
+
+@keyframes ac-pulse {
+	from {
+		box-shadow: var(--ac-shadow), 0 0 0 0 rgba(197, 154, 66, 0.8);
+	}
+	to {
+		box-shadow: var(--ac-shadow), 0 0 0 12px rgba(197, 154, 66, 0);
+	}
+}
+
+/* Toasts stack above the launcher (its 16 px offset, its 44 px height and a 12 px gap), the newest nearest to
+   it. The stack itself takes no clicks, so the page between toasts stays usable. It sits over the open window
+   (1030), whose dialog backdrop or panel would otherwise hide a toast and take its click, and below the desk's
+   modals (1040/1050). */
+.toasts {
+	position: fixed;
+	inset-block-end: 72px;
+	inset-inline-end: 16px;
+	z-index: 1035;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	inline-size: min(360px, calc(100vw - 32px));
+	pointer-events: none;
+}
+
+.toast {
+	--ac-toast-accent: var(--ac-p-normal);
+	--ac-link: var(--ac-green-700);
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding-block: 8px;
+	padding-inline: 12px 4px;
+	border: 1px solid var(--ac-border);
+	border-inline-start: 3px solid var(--ac-toast-accent);
+	border-radius: var(--ac-radius);
+	background: var(--ac-surface);
+	color: var(--ac-ink);
+	box-shadow: var(--ac-shadow);
+	font-size: 14px;
+	line-height: 1.6;
+	cursor: pointer;
+	pointer-events: auto;
+	animation: ac-toast-in 180ms ease-out;
+}
+
+.toast[data-level="urgent"] {
+	--ac-toast-accent: var(--ac-p-urgent);
+}
+
+.toast[data-level="immediate"] {
+	--ac-toast-accent: var(--ac-p-immediate);
+}
+
+/* Green 700 is too dark on the dark surface for text (WCAG AA); green 500 is the same hue, lighter. */
+:host([data-theme="dark"]) .toast {
+	--ac-link: var(--ac-green-500);
+}
+
+.toast-icon {
+	display: inline-flex;
+	flex: none;
+	color: var(--ac-toast-accent);
+}
+
+.toast-text {
+	flex: 1;
+	min-inline-size: 0;
+	overflow-wrap: anywhere;
+}
+
+.toast-pill {
+	display: inline-flex;
+	margin-inline-end: 6px;
+	padding-inline: 8px;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.toast[data-level="urgent"] .toast-pill {
+	background: var(--ac-p-urgent);
+	color: var(--ac-green-900);
+}
+
+.toast[data-level="immediate"] .toast-pill {
+	background: var(--ac-p-immediate);
+	color: #ffffff;
+}
+
+.toast-action {
+	flex: none;
+	padding-block: 2px;
+	padding-inline: 10px;
+	border: 1px solid var(--ac-link);
+	border-radius: var(--ac-radius-sm);
+	background: transparent;
+	color: var(--ac-link);
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: background-color 150ms ease-out;
+}
+
+.toast-action:hover {
+	background: var(--ac-surface-2);
+}
+
+.toast-close {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	inline-size: 28px;
+	block-size: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: var(--ac-radius-sm);
+	background: transparent;
+	color: var(--ac-muted);
+	cursor: pointer;
+}
+
+.toast-close:hover {
+	color: var(--ac-ink);
+}
+
+.toast-close svg {
+	inline-size: 16px;
+	block-size: 16px;
+}
+
+@keyframes ac-toast-in {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

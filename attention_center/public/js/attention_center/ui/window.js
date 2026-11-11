@@ -16,7 +16,8 @@ const FOCUSABLE = ":is(button:not([disabled]), a[href], [tabindex]):not([tabinde
 
 // The window [FR-UI-02, FR-UI-03, FR-UI-08]: one tab per source and the "All" tab, the items of the selected tab
 // page by page, and loading, empty and error states, in the container of the display_mode preference. It
-// opens and closes with `store.ui.open` and follows `store.prefs.display_mode` while open.
+// opens and closes with `store.ui.open`, on the tab `store.ui.tab` names ("All" when none), and follows
+// `store.prefs.display_mode` while open.
 //
 // The dialog is modal: a backdrop covers the page and focus stays inside. The panel above the launcher and
 // the drawer on the inline-end edge leave the page usable, so focus may leave them. Closing returns focus to
@@ -117,6 +118,9 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 			if (state.ui.open !== previousState.ui.open) {
 				if (state.ui.open) show();
 				else hide();
+			} else if (state.ui.open && state.ui !== previousState.ui) {
+				// Asked to open while open, as from a toast's "View": the user asks for what arrived.
+				showTab(state.ui.tab);
 			} else if (state.ui.open && state.summary !== previousState.summary) {
 				onSummary();
 			}
@@ -126,16 +130,22 @@ export function createWindow(root, { store, api, safe, announce, refreshSummary,
 	function show() {
 		opener = root.activeElement ?? document.activeElement;
 		restoreFocus = true;
-		selected = ALL_TAB;
+		frame.hidden = false;
+		showTab(store.get().ui.tab);
+		refresh();
+	}
+
+	// Shows a tab ("All" for null) from its first page with items fetched afresh, and marks its sources seen
+	// again: the pages and seen marks of this opening may predate what the user now asks to see.
+	function showTab(id) {
+		selected = id ?? ALL_TAB;
 		page = 0;
 		loading = false;
 		feeds = new Map();
 		seen = new Set();
-		frame.hidden = false;
 		renderTabs();
 		tabs.focusSelected();
 		load();
-		refresh();
 	}
 
 	function hide() {
