@@ -50,7 +50,7 @@ If the source does not appear, see [Troubleshooting](#11-troubleshooting).
 
 | Use | When |
 |---|---|
-| `doctype_query` (declarative) | The items are the rows of one DocType that a fixed list of filters selects, possibly with `{user}` and `{today}` in the values. Most "assigned to me" and "waiting for my role" lists. No code; an admin could also build it in the desk |
+| `doctype_query` (declarative) | The items are the rows of one DocType that a fixed list of filters selects, possibly with `{user}` and `{today}` in the values: most "assigned to me" lists, and queues that your DocType's permissions already limit to the right people. No code; an admin could also build it in the desk |
 | `python` | Anything else: the user's teams or units, conditions joined by OR, rows from several DocTypes, a per-document permission check, computed priorities. You write two functions (three with recipients) |
 
 Both run as the logged-in user when the user's browser asks (counts are kept for a minute); nothing
@@ -77,8 +77,8 @@ The order of the tabs and who sees a source are the admin's (section 8): an entr
 ### How entries are checked
 
 At each migrate every entry is checked. A rejected entry is skipped and logged at ERROR in
-`attention_center.log` (section 10) with your app's name and the entry's position, and the other
-entries still load. An entry is rejected when:
+`attention_center.log` (section 10) with your app's name and the entry's position or key, and the
+other entries still load. An entry is rejected when:
 
 - `contract_version` is not a supported integer, the key does not match the pattern, or a required key is missing or of the wrong type;
 - it holds a key that its `type` does not define (a misspelt `filter` is rejected, not ignored, because ignoring it would widen the query);
