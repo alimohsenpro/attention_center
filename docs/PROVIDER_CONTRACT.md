@@ -213,7 +213,7 @@ field roles.
 | `id` | yes | text or integer, unique within your source |
 | `title` | yes | plain text; HTML is stripped, whitespace collapsed, cut at 200 characters |
 | `route` | yes\* | desk route starting with `/app/` |
-| `reference_doctype`, `reference_name` | yes\* | the document to open, instead of `route` |
+| `reference_doctype`, `reference_name` | yes\* | the document to open, instead of `route`; given with a `route` too, the document the item is about, which "Remind me later" names |
 | `type_label` | no | short label shown as the item's type |
 | `from_label` | no | the "From" column as text; or `from_user`, a user id shown as the user's full name |
 | `date` | no | when the item arrived: `datetime`, `date` or ISO text |

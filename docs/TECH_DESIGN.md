@@ -38,6 +38,8 @@ attention_center/                     Python package
     approvals.py                      Workflow Action (python source)
     announcements.py                  announcements: python source, audience rule, acknowledgement, receipts
     builtin.py                        definitions of the built-in sources
+    events.py                         today's calendar events (python source, release 0.2)
+    reminders.py                      due reminders (python source) and "Remind me later" (release 0.2)
   attention_center/doctype/           DocTypes (module "Attention Center") with their form scripts
   attention_center/workspace/         the managers' workspace
   attention_center/report/            the managers' report of who acknowledged an announcement
@@ -273,7 +275,9 @@ rejected, not converted, so the entry is skipped like any other instead of stopp
 `frappe.logger("attention_center")` warning per source per request.
 
 Normalised items carry exactly the keys above (with `from_label` resolved, `route` built from the
-reference when needed) plus `overdue`; anything else a source returns is dropped. Items without a
+reference when needed) plus `overdue`; anything else a source returns is dropped. `reference_doctype` and
+`reference_name` are kept (both null unless both are valid), also when a `route` is given: they name the
+document the item is about, which "Remind me later" sets its reminder on (§5, §7.2) [FR-SNZ-01]. Items without a
 valid `id`, `title` or route, and repeated ids, are dropped (`normalize_items`, one warning with
 the source key and counts). An invalid optional value falls back to its default instead of
 dropping the item, so the user never loses an item that can still be opened. A `due` date is
@@ -330,10 +334,34 @@ the ones addressed to them. It returns nothing when the user may not read the Do
 withdraws the `Desk User` permission hides announcements instead of listing items nobody can open
 [FR-PERM-04 AC2]. Like approvals, only the newest 100 received announcements are counted and listed.
 
+Release 0.2 adds two info sources [FR-EXT-01], both python sources over Frappe's own DocTypes read with
+`frappe.get_list` as the user:
+
+- `attention_center.events` ("Today's Events", `sources/events.py`): the open Events the user's calendar shows today.
+  `frappe.get_list("Event")` applies Event's permission rules (the user's own events, public ones, those they take part
+  in). Candidates are the open events starting before tomorrow that overlap today or repeat, one-off events first, at
+  most COUNT_CAP + 1; `occurs_on` keeps a one-off event on every day from its start to its end and a repeating one on
+  the days an occurrence starts (Daily; Weekly on its ticked weekdays; Monthly and Yearly on the start's day, the
+  month's last day when it is shorter), until `repeat_till`, as Frappe's calendar (`get_events`) repeats them.
+  Items in the order of the day, all-day events first: title = `subject`, `type_label` = Frappe's translated
+  `event_category`, from = the owner, date = the start of today's occurrence (none for an all-day event, whose status
+  reads "All day"), route = the event. An event joins the list at midnight, or when it is added or changed during the
+  day, so `latest` and `new_since` use `max(modified, midnight)`: today's events are new until the user looks at
+  them, an event added during the day is new again, and the start time, which is later than the user's look for
+  every event still to come, is not used. `get_recipients`: nobody when neither the event nor its previous version
+  is on today; every enabled desk user when either is public (above the cap that is a broadcast, §6); else the owner
+  and the participants' `email`. Watches `Event`.
+- `attention_center.reminders` ("Due Reminders", `sources/reminders.py`): the user's own `Reminder` rows
+  (`user = session user`; Frappe gives desk users their own reminders only) whose `remind_at` passed less than
+  24 hours ago, newest first, at most COUNT_CAP + 1. A Reminder has no "done" state, so the window is what ends its
+  listing; 24 hours keeps one that fell due after the user left until the next morning. Title = `description`,
+  date = `remind_at`, route and `type_label` (translated DocType) from `reminder_doctype`/`reminder_docname`, else
+  the Reminder itself. `get_recipients` = the reminder's user. Watches `Reminder`.
+
 "View all" routes: approvals `/app/workflow-action?status=Open`, assignments
 `/app/todo?status=Open`, notifications `/app/notification-log?read=0`, announcements
 `/app/attention-announcement` (the list shows what the user receives, and every announcement to a
-manager). The definitions live in
+manager), events `/app/event/view/calendar/default`, reminders `/app/reminder`. The definitions live in
 `sources/builtin.py`; this app's `hooks.py` declares them in `attention_sources` like any consumer app.
 
 ### 4.6 Registry and visibility (`engine/registry.py`)
@@ -369,6 +397,7 @@ System User: Guest and website users get `frappe.PermissionError`), and take no 
 | `get_announcements_to_acknowledge(start: int = 0, page_length: int \| None = None)` (0.2) | `{state: "ok", items, has_more}` paged and bounded like `get_items`: the announcements source's items that await the caller's acknowledgement, the action items among them, which the window's All tab lists (§7.8). `frappe.PermissionError` while the source is not visible to the caller [FR-ANN-02] |
 | `get_unseen_announcements()` (0.2) | `{count, immediate}`: how many announcements the caller has not seen yet, by the rule of the source's `new_since` (§4.5) with the caller's watermark, and how many of them are immediate. The client asks it on the first summary of a page load (§7.4). `frappe.PermissionError` while the source is not visible to the caller [FR-ANN-02] |
 | `get_announcement(announcement: str)` (0.2) | `{name, title, priority, from_label, date, valid_to, body, requires_acknowledgement, acknowledged_at}` of an announcement the caller receives (`received`, §4.5), for the window's view of it: `priority` in lower case, dates as ISO text, `acknowledged_at` the caller's own or null. `body` is sanitised again on the way out, for a body written past the controller (an import, `db_set`). `frappe.PermissionError` with one message for an announcement the caller does not receive and for a missing one, and while the source is not visible [FR-ANN-02, FR-ANN-03] |
+| `remind_me_later(remind_at: str, title: str, reference_doctype: str \| None = None, reference_name: str \| None = None)` (0.2) | `{reminder, remind_at}`: inserts Frappe's `Reminder` as the caller, with their permissions (desk users create their own; its controller sets `user` to the session user): `remind_at` ISO date and time later than now (an offset is converted to the system time zone), `description` = `title` as plain text (HTML stripped, 200 characters), about the item's document when one is named. Naming one needs both values and read permission on it (`frappe.has_permission`); a missing or unreadable document gets one `frappe.PermissionError` message, and Frappe's "not found" message is dropped. Frappe's scheduler notifies the user when it falls due (a Notification Log), and the reminders source lists it [FR-SNZ-01] |
 | `get_announcement_receipts(announcement: str)` (0.2) | Managers only (`permissions.is_manager`): `{acknowledged: [{user, full_name, acknowledged_at}], pending: [{user, full_name}]}`, acknowledgements oldest first, pending users by full name. Receipts come from `frappe.get_list`; the audience (enabled System Users: all of them, or the holders of the roles through `Has Role` and the members of the groups) from `frappe.get_all`, because an Attention Manager need not read `User` and the answer goes to managers only. Someone who acknowledged and left the audience stays in `acknowledged` [FR-ANN-04] |
 
 `totals.attention` = sum over action sources of `urgent + immediate + overdue` (an item that is
@@ -406,6 +435,7 @@ user and the exception type only [NFR-PERF-02, NFR-REL-01].
 - Broadcast: delete the whole count hash for the source and publish once to the site room (no `user`; Frappe's socket server joins only System Users to it) with `{"sources": [...], "broadcast": true}`; clients then wait a random 0–5 s before refetching. A broadcast names no actor, and a source broadcast in a transaction is left out of that transaction's user nudges.
 - Frappe completes and deletes Workflow Actions with queries (`update_completed_workflow_actions`, `clear_workflow_actions`), which raise no document event, from its own `*` hooks, which run before this app's. So a document under an active workflow is watched by approvals: when a save moves it out of a workflow state (`get_doc_before_save()` holds another state) or it is deleted (`on_trash`: its current state), the enabled holders of the roles allowed on the transitions out of that state are nudged with the same query, cap and broadcast rule. The roles come from the cached Workflow definition (`get_workflow_name`, `frappe.get_cached_doc`), not from the action rows, which are already completed or gone; transition conditions are not evaluated, so the audience may be larger than the completed action's, never smaller. An insert, or a save that keeps the state, nudges no approver from the document: the action it creates fires its own insert. `frappe.delete_doc` also runs `on_change` after `on_trash`; that pass adds nothing, since a deleted document has no previous version.
 - Known staleness, bounded by `summary_cache_ttl`: Frappe's bell marks Notification Logs read with `frappe.db.set_value` (`mark_as_read`, `mark_all_as_read`), which raises no event, so the reader's notifications count stays cached until it expires (fixing it would mean overriding core; the client may refetch after the bell is used). A request that computed a count from the snapshot before a commit can store it just after the callback dropped it, which keeps that value for one TTL. A change undone with `rollback(save_point=…)` still sends its (content-free) nudge.
+- Events and reminders (0.2): a change of an Event nudges whom today's list concerns (`events.get_recipients`, §4.5); a change of a Reminder nudges its user. A reminder falling due, or the day changing, raises no event: the user sees it at the next summary once their cached count is older than `summary_cache_ttl`. Frappe's job that notifies due reminders runs every 15 minutes and sends a reminder up to 15 minutes before its time; its Notification Log nudges the notifications source.
 - Announcements: saving one is broadcast (it may address every desk user); an acknowledgement nudges its user. An announcement whose `valid_from` or `valid_to` passes raises no event: users see it arrive or leave at their next summary once their cached count is older than `summary_cache_ttl` (at the latest the heartbeat after that).
 - `nudge(users: list[str], source_key: str)` is the public helper for consumer apps [FR-RT-03]. It raises `frappe.ValidationError` for a key that names no `Attention Source` and for users that are not a list of user ids, sends after the commit like document nudges, and broadcasts above the cap. Consumer-side call pattern (documented in the provider guide): `if "attention_center" in frappe.get_installed_apps(): frappe.get_attr("attention_center.engine.realtime.nudge")(users, key)`.
 
@@ -429,7 +459,7 @@ public/js/attention_center/
   ui/styles.js        CSS text (logical properties only), tokens, dark mode
   ui/icons.js         inline SVG icons used by the UI
   ui/launcher.js  ui/toast.js
-  ui/window.js  ui/tabs.js  ui/table.js  ui/settings.js  ui/announcement.js   (window bundle, lazy)
+  ui/window.js  ui/tabs.js  ui/table.js  ui/settings.js  ui/announcement.js  ui/snooze.js   (window bundle, lazy)
   ui/window_styles.js CSS text of the window, added to the shadow root by the window bundle
   util/feed.js        PURE: the items of a tab page by page; the "All" tab's merge of the action sources
   util/window_tabs.js PURE: summary -> the window's tabs (sources, sources marked seen, counter, attention, unseen,
@@ -443,7 +473,8 @@ public/js/attention_center/
   util/title.js       "(N) " tab-title counter: PURE retitle + a <title> observer
   util/route.js  util/escape.js   PURE: desk-route validation and set_route arguments, HTML escaping
   util/dom.js         stylesheet adoption into the shadow root, element and button helpers
-  util/time.js        PURE: Do Not Disturb times ("for 1 hour", "until the end of the day") on naive time text
+  util/time.js        PURE: Do Not Disturb times ("for 1 hour", "until the end of the day") and "Remind me later"
+                      times ("in 1 hour", "tomorrow morning", a datetime-local value) on naive time text
   util/settings.js    PURE: a settings change applied at once and stored, with its saving / saved / failed state
   util/share_prefs.js the preferences kept in step across the user's tabs (BroadcastChannel)
 tests/js/             node --test unit tests for the PURE modules and coordination logic; the root
@@ -467,7 +498,8 @@ tests/js/             node --test unit tests for the PURE modules and coordinati
 - Navigation: `frappe.set_route` for `/app/...` routes after closing the window. Routes are validated to start with `/app/`; anything else is ignored. The route is passed as decoded path segments followed by its query as an object of route options (`util/route.js`, `routeArguments`): given the text `/app/todo?status=Open`, Frappe 15's router encodes the `?` into the last segment. "Open" and "View all" are real links (`href` = the route), so a click with a modifier key or the middle button opens a new browser tab; a plain click navigates in place.
 - Tabs [FR-UI-02]: "All" first, then one per action source, then the info sources, in summary order, then Announcements (§7.8) (`util/window_tabs.js`). A tab's counter is the source's `count` (`99+` when capped; "All" shows the launcher's action count), red when the tab holds urgent, immediate or overdue items; an info tab with `new_since > 0` shows a dot with the hidden text "New". The window opens on "All", or on the tab a toast names (`store.ui.tab`, §7.4). A toast clicked while the window is open shows that tab from its first page with items fetched afresh, even when it is already selected: the pages fetched earlier in this opening are dropped and its sources are marked seen again, as on a new opening, because the user asked to see what arrived.
 - Items [FR-UI-02, FR-API-02]: a tab's items come page by page from `get_items` (`util/feed.js`; "All" takes the announcements' from `get_announcements_to_acknowledge`, §7.8). The "All" tab merges the action sources like sorted lists: it takes the next item from whichever source's next item comes first (overdue, then immediate, urgent, normal, then newest) and fetches a source's next page only when the merge has used up what it holds and needs its next item, so each source keeps the order the server gave it. Fetched pages are kept while the window is open (going back sends no request) until a toast asks for a tab (above); a page answered while the user already moved to another tab or page is dropped. Paging is by offset, so when a source shrinks while the window is open (an item handled in another browser tab or by a colleague), rows that move up into a page already fetched are not shown until the window opens again, and a later page can come back empty: it then answers with the last page that has items, with "Next" disabled. Only the first page shows the empty state, so "Nothing is waiting on you" is never said while items remain. A source that fails is named in a notice above the other sources' items, with "Try again"; a tab whose only source fails shows the error state. A new summary updates the counters; the shown page reloads only when the tab's set of sources changed, so rows do not move under the pointer.
-- Table columns: item, type (and, in "All", the source), from, date as relative age (`frappe.datetime.prettyDate`, full date in the tooltip), priority and due date, status, "Open". Urgent and immediate are pills with an icon and a word, overdue rows add an "Overdue" pill and a 3 px inline-start stripe, normal is muted text [FR-UI-02 AC2]. Every value is set as text.
+- Table columns: item, type (and, in "All", the source), from, date as relative age (`frappe.datetime.prettyDate`, full date in the tooltip, and the full date for a time still to come), priority and due date, status, "Open" with "Remind me later" beside it. Urgent and immediate are pills with an icon and a word, overdue rows add an "Overdue" pill and a 3 px inline-start stripe, normal is muted text [FR-UI-02 AC2]. Every value is set as text.
+- Remind me later [FR-SNZ-01] (`ui/snooze.js`): every item has a clock button beside "Open" (`aria-expanded`, labelled "Remind me later about {title}") that shows and hides a row under the item's, spanning the table (in cards, it continues the item's card): "In 1 hour", "Tomorrow morning" (9:00 the next day), and "Another time" (a `datetime-local` input whose minimum is now) with "Set reminder". Times are chosen in the user's time zone (`frappe.datetime.now_datetime`, `util/time.js`) and sent in the system time zone (`convert_to_system_tz`), like Do Not Disturb (§7.6); a picked time not later than now is refused in the row. `remind_me_later` gets the item's title and `reference_doctype`/`reference_name` (§4.3, §5), as a write queued like the others. The row says "Saving…", then "Reminder set for {time}." (the time the server stored) or "The reminder could not be set. Try again.", also through the live region; its buttons are `aria-disabled` while the request runs, so they keep focus, and a second press then is ignored. The item stays in its list: the reminder is the user's, and the source app keeps the item's state (NG-7).
 - Seen [FR-API-03]: once a tab's items are shown (or its empty state), each of its sources not yet marked during this opening of the window (or since a toast last asked for a tab) is marked seen with `mark_seen`, then the summary is fetched again so the "new" dots clear. "All" marks every action source but the announcements, which the Announcements tab marks (§7.8); a source that failed to load is not marked.
 - Keyboard and focus [FR-UI-08]: `Alt+Shift+A` toggles the window, registered through `frappe.ui.keys.add_shortcut` (with `ignore_inputs`) when available (Frappe matches shortcuts by key code, `frappe.ui.keys.get_key`). The window has `role="dialog"` and the title as its label, and `aria-modal` in dialog mode. Opening focuses the selected tab. In dialog mode Tab and Shift+Tab wrap around inside the window. The window element itself takes focus (`tabindex="-1"`) when a click lands on plain content or a focused control disappears or is disabled, so focus never falls back to the page; beside a panel or drawer, focus the user moved onto the page stays there when the window's content changes. `Esc` closes and stops the event, because Frappe's own Escape handler would otherwise also close a form dialog or grid row behind the window; a click on the backdrop closes too. The arrow keys, Home, End, Page Up and Page Down stop in the window as well, in every mode and on any of its elements (`util/keys.js`, `keepsKey`): Frappe's list view handles Up and Down on `window` (`frappe.ui.keys`) and checks for a focused input through `document.activeElement`, which is the window's host, so it would focus the first list row behind the window and cancel the key, and a radio group, the tone select, the volume slider or the scroll of the content would not move. Every other key reaches the desk, so `Alt+Shift+A` and the desk's own shortcuts still work while focus is in the window. Closing returns focus to the element that had it before opening, except after "Open" or "View all", when the new page owns focus, and except when the user had moved focus onto the page beside a panel or drawer. Tabs follow the WAI-ARIA tabs pattern with a roving tabindex and manual activation: the arrow keys (mirrored in RTL), Home and End move focus, Enter, Space or a click selects, because selecting fetches from the server.
 - Live region (`role="status"`, `aria-live="polite"`) in the shadow root, created by the launcher bundle: the window announces each page ("Page 1. Items shown: 10"), the empty state and errors; the alerts will announce through it too. `prefers-reduced-motion` disables the pulse and slide animations.
@@ -650,6 +682,7 @@ DocType JSON; plain desk scripts, not modules of the client bundles).
 | Rows | `frappe.get_list` (declarative), per-document `frappe.has_permission` (approvals), the source's own logic (python) |
 | Realtime | content-free payload, user rooms, after commit |
 | Storage | preferences readable/writable only by their owner through the API |
+| Reminders (0.2) | `remind_me_later` inserts the caller's own Reminder with their permissions, about a document only when they may read it; the reminders source lists only the session user's reminders through `frappe.get_list` |
 | Announcements (0.2) | desk users read only the announcements they receive (`permission_query_conditions` and `has_permission` built on `received`), open and acknowledge only those in the window; receipts and the report of who acknowledged are for managers only (report roles, report permission on the receipts, and a manager check in `execute`) |
 | Client | all text escaped; routes restricted to `/app/` |
 

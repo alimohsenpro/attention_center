@@ -1,7 +1,7 @@
 """Smoke tests of the desk client in Chromium [FR-UI-09, FR-UI-10, NFR-A11Y-01]: the launcher and the window in
 English (left to right) and Arabic (right to left), in the light and the dark desk theme, opened and closed with
-the keyboard, the three display modes, and the sticky toast of an immediate announcement published before the page
-loaded, which an acknowledgement stops [FR-ANN-02].
+the keyboard, the three display modes, the sticky toast of an immediate announcement published before the page
+loaded, which an acknowledgement stops [FR-ANN-02], and "Remind me later" on an item [FR-SNZ-01].
 
 scripts/ci/run_tests.sh runs them with python3 after the backend tests. They are skipped, with the reason, when
 Playwright for Python or its Chromium is missing. Otherwise they build the app's assets, complete the site's setup
@@ -188,6 +188,7 @@ def create_user_with_items() -> None:
 		{"description": ITEM, "allocated_to": USER, "priority": "High", "status": "Open"},
 	)
 	unittest.addModuleCleanup(call, "DELETE", f"/api/resource/ToDo/{todo['name']}")
+	state["todo"] = todo["name"]
 	notification = call(
 		"POST",
 		"/api/resource/Notification Log",
@@ -343,6 +344,35 @@ class TestDeskClient(unittest.TestCase):
 		# The toast would follow one more request.
 		page.wait_for_timeout(2_000)
 		expect(toast).to_have_count(0)
+		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
+
+	def test_remind_me_later_sets_the_users_reminder_about_the_item(self):
+		"""From the item's row, right to left: Frappe's Reminder of the user about the item's document [FR-SNZ-01]."""
+		page, errors = self.open_desk("ar", "light")
+		page.locator(".launcher-main").click()
+		toggle = page.locator("tbody tr", has_text=ITEM).locator(".snooze-button")
+		toggle.click()
+		expect(toggle).to_have_attribute("aria-expanded", "true")
+		choices = page.locator(".snooze-row:not([hidden])")
+		choices.get_by_role("button", name="بعد ساعة").click()
+		expect(choices.locator(".snooze-status")).to_contain_text("سيصلك تذكير في")
+		if SCREENSHOTS:
+			page.screenshot(path=os.path.join(SCREENSHOTS, "remind-me-later-ar.png"))
+
+		reminders = state["admin"].get(
+			"/api/resource/Reminder",
+			params={
+				"filters": json.dumps([["user", "=", USER]]),
+				"fields": json.dumps(["name", "reminder_doctype", "reminder_docname", "description"]),
+			},
+		)
+		rows = reminders.json()["data"]
+		for row in rows:
+			self.addCleanup(call, "DELETE", f"/api/resource/Reminder/{row['name']}")
+		self.assertEqual(
+			[(row["reminder_doctype"], row["reminder_docname"], row["description"]) for row in rows],
+			[("ToDo", state["todo"], ITEM)],
+		)
 		self.assertEqual([error for error in errors if "[attention_center]" in error], [])
 
 
