@@ -6,6 +6,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt
 
+from attention_center.engine.preferences import get_tones
 from attention_center.engine.registry import clear_visibility_cache
 
 BOUNDS = {
@@ -19,6 +20,10 @@ MIN_REMINDER_INTERVAL_HOURS = 0.25
 
 
 class AttentionCenterSettings(Document):
+	def onload(self) -> None:
+		# The form's tone selects show the labels of tones.json instead of the bare ids of the DocType options.
+		self.set_onload("tones", [{"value": tone["id"], "label": tone["label"]} for tone in get_tones()])
+
 	def validate(self) -> None:
 		for fieldname, (low, high) in BOUNDS.items():
 			if not low <= cint(self.get(fieldname)) <= high:
