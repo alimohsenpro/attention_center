@@ -54,7 +54,7 @@ checks the pairs the stylesheets use, in both themes, and prints each ratio.
 ## Components
 
 - **Launcher**: pill, `--ac-green-800` background, `--ac-gold-soft` icon and label, counter in a gold pill with `--ac-green-900` text; collapsed state is a 44 px circle with the counter as a badge. A thin gold ring pulses once on new items (no pulse under `prefers-reduced-motion`). When attention items exist the counter pill uses `--ac-p-immediate` with white text.
-- **Window header**: horizontal gradient `--ac-green-800 → --ac-green-900`, title in white, a 2 px gold line under it (`linear-gradient(90deg, transparent, var(--ac-gold) 30%, var(--ac-gold-soft) 50%, var(--ac-gold) 70%, transparent)`). Header actions: sound toggle, settings, mode, close.
+- **Window header**: horizontal gradient `--ac-green-800 → --ac-green-900`, title in white, a 2 px gold line under it (`linear-gradient(90deg, transparent, var(--ac-gold) 30%, var(--ac-gold-soft) 50%, var(--ac-gold) 70%, transparent)`). Header actions: settings, mode, close.
 - **Tabs**: text tabs with a counter pill; the active tab has `--ac-green-700` text and a 2 px underline; counters of tabs with attention items use the immediate colour.
 - **Table**: header row on `--ac-surface-2`, 13 px, muted text. Rows separated by hairlines; hover uses `--ac-surface-2`. Overdue rows have a 3 px stripe on the inline-start edge in `--ac-p-immediate` and show the age in that colour. Priority is a pill with icon + text (never colour alone). The "Open" control is a small outlined button in `--ac-green-700`.
 - **Stacked rows** (panel, drawer, narrow dialog): card per item, 12 px radius, title on the first line, metadata line below, priority pill and age on the inline-end side.
