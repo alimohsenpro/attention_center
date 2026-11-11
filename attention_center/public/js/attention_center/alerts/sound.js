@@ -8,16 +8,20 @@ const UNLOCK_EVENTS = ["pointerup", "keydown"];
 // `reminder`) in one tab of the browser.
 //
 // Nothing plays while `User.mute_sounds` is set (`muted`) or Do Not Disturb lasts, whatever the role: both come
-// before the sound scope, which the alert policy has applied already. Nothing plays at volume 0 either. When the
-// browser refuses to play before the user's first gesture, `onLocked(first)` is told (`first` the first time in
-// the page load, for the one-time hint), the tab leaves the next alerts to other tabs, and the next pointerup or
+// before the sound scope, which the alert policy has applied already. Nothing plays at volume 0 either. A tab that
+// has not shown yet that the browser lets it play (no gesture since the page loaded, no sound played) leaves an
+// alert to the tabs that have, and plays it only when none of them claims it. When the browser refuses to play
+// before the user's first gesture, `onLocked(first)` is told (`first` the first time in the page load, for the
+// one-time hint), the tab gives the alert back and leaves the next alerts to other tabs, and the next pointerup or
 // keydown unlocks it, without a reload, by playing a muted tone; then `onUnlocked()` is told.
 //
 // `tones` are the boot's tones ({id, url}); `settings` name the organisation's urgent, immediate and reminder
 // tones; `getPrefs()` returns the user's tone, volume (0–100) and dnd_until; `now()` the current time as naive
-// ISO text in the system time zone, the form of dnd_until; `claim(id)` resolves true in the one tab that plays
-// alert `id` and `mark(id)` records it as handled without playing it (alerts/tabs.js); `page` (the window)
-// receives the gestures; `safe` wraps the handlers in the client's guard.
+// ISO text in the system time zone, the form of dnd_until; `claim(id, proven)` resolves true in the one tab that
+// plays alert `id`, `mark(id)` records it as handled without playing it and `release(id)` gives back a claim
+// the browser refused (alerts/tabs.js); `page` (the window) receives the gestures; `activation`
+// (navigator.userActivation) tells whether the page had a gesture the browser counts; `safe` wraps the handlers
+// in the client's guard.
 export function createSound({
 	tones,
 	settings,
@@ -26,15 +30,20 @@ export function createSound({
 	now,
 	claim,
 	mark,
+	release,
 	page,
 	safe,
 	onLocked,
 	onUnlocked,
+	activation = navigator.userActivation,
 	createAudio = (url) => new Audio(url),
 }) {
 	// One audio element per tone, created on its first play.
 	const players = new Map();
 	let locked = false;
+	let played = false;
+	// Whether the tab has shown that the browser lets it play: a gesture the browser counts, or a sound it played.
+	const proven = () => played || Boolean(activation?.hasBeenActive);
 	// A hint the toast stack has no room for (three immediate toasts) is not tried again: those toasts leave only
 	// by a click or a key, which unlocks the sound.
 	let hinted = false;
@@ -104,15 +113,17 @@ export function createSound({
 		const prefs = getPrefs();
 		burstHeard =
 			!muted && !dndActive(prefs.dnd_until, now()) && Boolean(prefs.volume) && !locked;
-		if (!burstHeard || !(await claim(id))) return;
+		if (!burstHeard || !(await claim(id, proven()))) return;
 		const audio = player(role, prefs);
 		audio.volume = prefs.volume / 100;
 		audio.currentTime = 0;
 		try {
 			await audio.play();
+			played = true;
 		} catch (error) {
 			if (error?.name === "NotAllowedError") {
 				burstHeard = false;
+				release(id);
 				lock();
 			}
 		}

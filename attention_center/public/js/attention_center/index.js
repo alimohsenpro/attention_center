@@ -192,6 +192,7 @@ function createAlertSound(boot, { store, launcher, toasts }) {
 		now: () => frappe.datetime.system_datetime(),
 		claim: tabs.claim,
 		mark: tabs.mark,
+		release: tabs.release,
 		page: window,
 		safe: guard.safe,
 		onLocked: (first) => {

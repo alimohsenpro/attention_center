@@ -140,14 +140,16 @@ test("Do Not Disturb set after the page loaded silences the next sound", async (
 
 test("a blocked sound locks the tab and shows the hint; the first gesture unlocks it without a reload", async () => {
 	const browser = fakeBrowser();
-	const tab = browser.open();
+	// A tab that has had no gesture yet, alone: it claims the alert after waiting for tabs that can play.
+	const tab = browser.open({ active: false });
 	tab.refusal = "NotAllowedError";
 
-	await browser.play([[tab, "standard", "a"]]);
+	await browser.play([[tab, "standard", "a"]], 3000);
 	assert.deepEqual(tab.played, []);
 	assert.deepEqual(tab.locks, [true], "the hint is shown");
 
 	// The user clicks: the browser allows sound from now on, and the page receives the gesture.
+	tab.activation.hasBeenActive = true;
 	tab.refusal = null;
 	tab.page.dispatchEvent(new Event("pointerup"));
 	await settle();

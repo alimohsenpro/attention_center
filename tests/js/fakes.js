@@ -37,6 +37,7 @@ export function fakeClock() {
 
 // The localStorage of one browser: call the result once per tab. A tab reads its own writes at once and those of
 // another tab `latencyMs` later; once every write has arrived, the latest write of a key stands in every tab.
+// While `full` is set, the tab's setItem throws, as when the origin's quota is used up.
 export function fakeStorage(clock, latencyMs = 0) {
 	const writes = [];
 	return () => {
@@ -45,13 +46,18 @@ export function fakeStorage(clock, latencyMs = 0) {
 			writes.filter((write) => write.key === key && visible(write)).at(-1)?.value ?? null;
 		const keys = () => [...new Set(writes.map((write) => write.key))].filter(current);
 		const tab = {
+			full: false,
 			get length() {
 				return keys().length;
 			},
 			key: (index) => keys()[index] ?? null,
 			getItem: current,
-			setItem: (key, value) =>
-				writes.push({ key, value: String(value), at: clock.now(), tab }),
+			setItem(key, value) {
+				if (this.full) {
+					throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+				}
+				writes.push({ key, value: String(value), at: clock.now(), tab });
+			},
 			removeItem: (key) => writes.push({ key, value: null, at: clock.now(), tab }),
 		};
 		return tab;
@@ -100,11 +106,12 @@ export function fakeBrowser({ storageLatencyMs = 0, channelLatencyMs = 1 } = {})
 	let opened = 0;
 	return {
 		clock,
-		// Opens a tab: the visibility of its document, the value random() gives its claims, the user's
-		// preferences, the organisation's tones and User.mute_sounds.
+		// Opens a tab: the visibility of its document, the value random() gives its claims, whether its page had a
+		// gesture the browser counts, the user's preferences, the organisation's tones and User.mute_sounds.
 		open({
 			visibility = "visible",
 			random = 0.5,
+			active = true,
 			prefs = {},
 			settings = SETTINGS,
 			muted = false,
@@ -112,6 +119,8 @@ export function fakeBrowser({ storageLatencyMs = 0, channelLatencyMs = 1 } = {})
 			const tab = {
 				id: `tab-${++opened}`,
 				prefs: { ...PREFS, ...prefs },
+				// navigator.userActivation: false in a tab opened in the background or reloaded, until a click.
+				activation: { hasBeenActive: active },
 				// The error an audible play() is refused with (NotAllowedError until a gesture), or null.
 				refusal: null,
 				// The error a muted play() is refused with, or null.
@@ -142,19 +151,29 @@ export function fakeBrowser({ storageLatencyMs = 0, channelLatencyMs = 1 } = {})
 				now: () => NOW,
 				claim: tabs.claim,
 				mark: tabs.mark,
+				release: tabs.release,
 				page: tab.page,
 				safe: (fn) => fn,
 				onLocked: (first) => tab.locks.push(first),
 				onUnlocked: () => tab.unlocks++,
+				activation: tab.activation,
 				createAudio: (url) => fakeAudio(url, tab),
 			});
 			return tab;
 		},
 		// Hands each tab the alerts of a summary as [tab, role, alert id], the role null when the tab's burst already
-		// sounded; lets the tabs' timers run for `ms` and waits until every sound has ended.
+		// sounded; lets the tabs' timers run for `ms` and waits until every sound has ended. Fails when a tab
+		// still waits for its claim by then, instead of waiting for a timer that no one will run.
 		async play(plays, ms = 1000) {
-			const started = plays.map(([tab, role, id]) => tab.sound.alert(role, id));
+			let waiting = plays.length;
+			const started = plays.map(([tab, role, id]) =>
+				tab.sound.alert(role, id).finally(() => waiting--)
+			);
 			clock.advance(ms);
+			await settle();
+			if (waiting) {
+				throw new Error(`${waiting} tabs still wait for their claim after ${ms} ms`);
+			}
 			await Promise.all(started);
 		},
 	};

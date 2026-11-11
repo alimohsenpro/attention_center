@@ -8,6 +8,10 @@ const CLAIM_PREFIX = "attention_center:claim:";
 // which claims at once, wins, and two hidden tabs seldom claim at the same moment.
 const HIDDEN_DELAY_MS = 120;
 const HIDDEN_JITTER_MS = 80;
+// A tab that has not shown that the browser lets it play claims this much later still, so that a tab that has, even
+// a hidden one, claims first. The browser runs a hidden tab's timers up to about a second late, both the refresh
+// that fetches the change there and the claim's delay.
+const UNPROVEN_DELAY_MS = 2500;
 // A tab plays once its claim has stood this long: a claim another tab wrote at the same moment reaches it by then,
 // and the later of the two stands in every tab.
 const SETTLE_MS = 120;
@@ -38,6 +42,7 @@ export function createTabs({
 		"message",
 		safe(({ data }) => {
 			if (data?.claim) heard.set(data.claim, clock.now());
+			if (data?.release) heard.delete(data.release);
 		})
 	);
 
@@ -52,10 +57,16 @@ export function createTabs({
 		return (heard.has(key) && live(heard.get(key))) || Boolean(stored(key));
 	}
 
+	// Returns false when the storage refused the claim (it is full, or disabled): the tabs then cannot agree.
 	function write(key) {
-		forgetOld();
-		storage.setItem(CLAIM_PREFIX + key, JSON.stringify({ tab, at: clock.now() }));
 		channel.postMessage({ claim: key });
+		forgetOld();
+		try {
+			storage.setItem(CLAIM_PREFIX + key, JSON.stringify({ tab, at: clock.now() }));
+			return true;
+		} catch {
+			return false;
+		}
 	}
 
 	function forgetOld() {
@@ -69,10 +80,12 @@ export function createTabs({
 	}
 
 	// Resolves true in the one tab that plays alert `id`, false in the others. A tab that finds the alert claimed
-	// (by another tab, or by itself earlier) leaves it; otherwise it claims it, at once when visible, after a
-	// short random delay when hidden, and plays only if its claim still stands once competing claims had time to
-	// land.
-	function claim(id) {
+	// (by another tab, or by itself earlier) leaves it; otherwise it claims it after a delay that puts the tabs in
+	// order: those that have shown that the browser lets them play (`proven`: a gesture or a sound since the page
+	// loaded) before those that have not, and among each, visible tabs, which claim at once, before hidden ones,
+	// which wait a short random delay. It plays only if its claim still stands once competing claims had time to
+	// land. A tab whose storage refuses the claim plays: a sound in more than one tab is better than in none.
+	function claim(id, proven) {
 		const key = claimKey(id);
 		return new Promise((resolve) => {
 			if (claimed(key)) {
@@ -80,16 +93,20 @@ export function createTabs({
 				return;
 			}
 			const delay =
-				page.visibilityState === "visible"
+				(proven ? 0 : UNPROVEN_DELAY_MS) +
+				(page.visibilityState === "visible"
 					? 0
-					: HIDDEN_DELAY_MS + random() * HIDDEN_JITTER_MS;
+					: HIDDEN_DELAY_MS + random() * HIDDEN_JITTER_MS);
 			clock.setTimeout(
 				safe(() => {
 					if (claimed(key)) {
 						resolve(false);
 						return;
 					}
-					write(key);
+					if (!write(key)) {
+						resolve(true);
+						return;
+					}
 					clock.setTimeout(
 						safe(() => resolve(stored(key)?.tab === tab)),
 						SETTLE_MS
@@ -107,7 +124,15 @@ export function createTabs({
 		if (!claimed(key)) write(key);
 	}
 
-	return { claim, mark };
+	// Withdraws this tab's claim on alert `id`, which the browser refused to play here, so that a tab that fetches
+	// the alert later plays it.
+	function release(id) {
+		const key = claimKey(id);
+		if (stored(key)?.tab === tab) storage.removeItem(CLAIM_PREFIX + key);
+		channel.postMessage({ release: key });
+	}
+
+	return { claim, mark, release };
 }
 
 // The id under which the tabs claim the sound of one summary's alerts: each source that sounded, with its count
