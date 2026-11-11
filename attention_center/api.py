@@ -138,6 +138,15 @@ def get_announcements_to_acknowledge(start: int = 0, page_length: int | None = N
 
 
 @frappe.whitelist()
+def get_unseen_announcements() -> dict:
+	"""How many announcements the user has not seen yet and how many of them are immediate: when a desk page loads,
+	the client raises the sticky toast of an immediate one [FR-ANN-02]."""
+	user = _desk_user()
+	source = _visible_source(user, announcements.KEY)
+	return announcements.unseen(user, preferences.get_watermarks(preferences.get_stored()).get(source.key))
+
+
+@frappe.whitelist()
 def get_announcement(announcement: str) -> dict:
 	"""An announcement the user receives, with its body and their acknowledgement, for the window's detail view
 	[FR-ANN-02, FR-ANN-03]."""

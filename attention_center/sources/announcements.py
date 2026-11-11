@@ -36,8 +36,24 @@ def get_count(user: str, since: datetime | None = None) -> dict:
 		"urgent": sum(row.priority == "Urgent" for row in waiting),
 		"immediate": sum(row.priority == "Immediate" for row in waiting),
 		"latest": rows[0].valid_from if rows else None,
-		"new_since": len(rows) if since is None else sum(row.valid_from > since for row in rows),
+		"new_since": len(_unseen(rows, user, since)),
 	}
+
+
+def unseen(user: str, since: datetime | None) -> dict:
+	"""How many announcements the user has not seen yet, and how many of them are immediate (§7.4)."""
+	rows = _unseen(received(user), user, since)
+	return {"count": len(rows), "immediate": sum(row.priority == "Immediate" for row in rows)}
+
+
+def _unseen(rows: list[frappe._dict], user: str, since: datetime | None) -> list[frappe._dict]:
+	"""Those published after the user last viewed the source (`since`), except the ones they acknowledged or wrote:
+	either way they have read it."""
+	return [
+		row
+		for row in rows
+		if (since is None or row.valid_from > since) and not row.acknowledged_at and row.owner != user
+	]
 
 
 def get_items(user: str, start: int, page_length: int) -> list[dict]:

@@ -7,7 +7,7 @@ from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_to_date, now_datetime
 
 from attention_center import api
-from attention_center.engine import realtime, registry, runner
+from attention_center.engine import preferences, realtime, registry, runner
 from attention_center.sources import announcements
 from attention_center.tests.utils import make_desk_role, make_user
 
@@ -271,6 +271,62 @@ class TestSource(AnnouncementTestCase):
 		)
 
 
+class TestUnseen(AnnouncementTestCase):
+	"""What is new to a user: the dots and the toast raised when a desk page loads follow it (§7.4, §7.8)."""
+
+	def setUp(self):
+		super().setUp()
+		self.now = now_datetime().replace(microsecond=0)
+
+	def published(self, hours_ago: int, title: str, **values) -> str:
+		name = self.announce(title, **values)
+		frappe.db.set_value(ANNOUNCEMENT, name, "valid_from", add_to_date(self.now, hours=-hours_ago))
+		return name
+
+	def unseen(self, user: str) -> tuple[int, dict]:
+		"""The source's new_since in the user's summary, and what get_unseen_announcements answers them."""
+		frappe.cache.delete_value(runner.COUNT_CACHE.format(KEY))
+		summary = self.as_user(user, api.get_summary)
+		(entry,) = (source for source in summary["sources"] if source["key"] == KEY)
+		return entry["new_since"], self.as_user(user, api.get_unseen_announcements)
+
+	def test_an_announcement_the_user_acknowledged_is_no_longer_new(self):
+		with patch.object(preferences, "now_datetime", return_value=add_to_date(self.now, hours=-2)):
+			self.as_user(self.outsider, api.mark_seen, KEY)
+		self.published(3, "Immediate, before the user looked", priority="Immediate")
+		immediate = self.published(
+			1, "Immediate, to acknowledge", priority="Immediate", requires_acknowledgement=1
+		)
+		self.assertEqual(self.unseen(self.outsider), (1, {"count": 1, "immediate": 1}))
+
+		self.acknowledge(self.outsider, immediate)
+		self.assertEqual(self.unseen(self.outsider), (0, {"count": 0, "immediate": 0}), "alone")
+
+		self.published(1, "Normal, for information")
+		self.assertEqual(
+			self.unseen(self.outsider), (1, {"count": 1, "immediate": 0}), "beside a normal one not seen yet"
+		)
+		self.assertEqual(
+			self.unseen(self.role_holder),
+			(3, {"count": 3, "immediate": 2}),
+			"a user who never looked and acknowledged nothing",
+		)
+
+	def test_the_authors_own_announcement_is_not_new_to_them(self):
+		self.published(1, "Immediate, for information", priority="Immediate")
+
+		self.assertEqual(self.unseen(self.manager), (0, {"count": 0, "immediate": 0}))
+		self.assertEqual(self.unseen(self.outsider), (1, {"count": 1, "immediate": 1}))
+
+	def test_an_announcement_for_others_is_not_counted(self):
+		self.published(
+			1, "Immediate, for the role", priority="Immediate", all_users=0, roles=[{"role": self.role}]
+		)
+
+		self.assertEqual(self.unseen(self.outsider), (0, {"count": 0, "immediate": 0}))
+		self.assertEqual(self.unseen(self.role_holder), (1, {"count": 1, "immediate": 1}))
+
+
 class TestAcknowledgement(AnnouncementTestCase):
 	def test_an_acknowledgement_is_stored_once(self):
 		name = self.announce("Read the new policy", requires_acknowledgement=1)
@@ -504,13 +560,14 @@ class TestWindow(AnnouncementTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			self.as_user(self.manager, api.get_announcement, cases[0][1])
 
-	def test_both_endpoints_are_refused_while_the_source_is_hidden(self):
+	def test_the_endpoints_are_refused_while_the_source_is_hidden(self):
 		name = self.announce("Read the new policy", requires_acknowledgement=1)
 		self.hide_the_source()
 
 		for endpoint, arguments in (
 			(api.get_announcements_to_acknowledge, ()),
 			(api.get_announcement, (name,)),
+			(api.get_unseen_announcements, ()),
 		):
 			with self.subTest(endpoint=endpoint.__name__), self.assertRaises(frappe.PermissionError):
 				self.as_user(self.outsider, endpoint, *arguments)

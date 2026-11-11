@@ -50,6 +50,7 @@ export function createApi(call) {
 			read("get_items", { source, start, page_length: pageLength }),
 		getAnnouncementsToAcknowledge: (start, pageLength) =>
 			read("get_announcements_to_acknowledge", { start, page_length: pageLength }),
+		getUnseenAnnouncements: () => read("get_unseen_announcements"),
 		getAnnouncement: (name) => read("get_announcement", { announcement: name }),
 		acknowledgeAnnouncement: (name) =>
 			write("acknowledge_announcement", { announcement: name }),

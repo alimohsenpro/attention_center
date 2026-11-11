@@ -57,6 +57,7 @@ const normalAlert = {
 };
 const otherAlert = { ...normalAlert, source: "app.tasks" };
 
+// A server method that records its calls and gives the same answer to each.
 function fetcher(answer) {
 	const calls = [];
 	const fetchItems = async (...args) => {
@@ -146,20 +147,16 @@ function loadedSummary(counts) {
 	};
 }
 
-const ok = (...items) => ({ state: "ok", items });
-// get_items lists those awaiting acknowledgement first: the newest announcements need not come first.
-const SEEN_IMMEDIATE = item("immediate", "2026-11-09T08:00:00");
-const UNSEEN_IMMEDIATE = item("immediate", "2026-11-10T09:40:00");
-const UNSEEN_NORMAL = item("normal", "2026-11-10T09:50:00");
-
-// [name, previous summary, announcements counts, answer of get_items, count the toast shows (null for none),
-// whether the server is asked]
+// The server leaves out of both `new_since` and its answer the announcements the user acknowledged or wrote
+// (test_announcements.py, TestUnseen).
+// [name, previous summary, announcements counts, answer of get_unseen_announcements, count the toast shows (null for
+// none), whether the server is asked]
 const PAGE_LOAD_CASES = [
 	[
 		"an immediate announcement not seen yet",
 		null,
 		{ new_since: 1 },
-		ok(SEEN_IMMEDIATE, UNSEEN_IMMEDIATE),
+		{ count: 1, immediate: 1 },
 		1,
 		true,
 	],
@@ -167,56 +164,74 @@ const PAGE_LOAD_CASES = [
 		"an immediate announcement among several not seen yet",
 		null,
 		{ new_since: 2 },
-		ok(SEEN_IMMEDIATE, UNSEEN_NORMAL, UNSEEN_IMMEDIATE),
+		{ count: 2, immediate: 1 },
 		2,
 		true,
 	],
 	[
-		"only a normal announcement not seen yet; the immediate one was seen",
+		"only a normal announcement not seen yet",
 		null,
 		{ new_since: 1 },
-		ok(SEEN_IMMEDIATE, UNSEEN_NORMAL),
+		{ count: 1, immediate: 0 },
 		null,
 		true,
 	],
-	["every announcement seen", null, { new_since: 0 }, ok(SEEN_IMMEDIATE), null, false],
+	[
+		"fewer announcements not seen than the summary counted, one acknowledged since in another tab",
+		null,
+		{ new_since: 2 },
+		{ count: 1, immediate: 1 },
+		1,
+		true,
+	],
+	[
+		"none not seen any more, the immediate one acknowledged since in another tab",
+		null,
+		{ new_since: 1 },
+		{ count: 0, immediate: 0 },
+		null,
+		true,
+	],
+	["every announcement seen", null, { new_since: 0 }, { count: 0, immediate: 0 }, null, false],
 	[
 		"the source in error",
 		null,
 		{ state: "error", new_since: 0 },
-		ok(UNSEEN_IMMEDIATE),
+		{ count: 1, immediate: 1 },
 		null,
 		false,
 	],
 	["a failed request", null, { new_since: 1 }, new Error("offline"), null, true],
-	["the items in error", null, { new_since: 1 }, { state: "error", items: [] }, null, true],
 	[
 		"a later summary of the page load",
 		loadedSummary({ new_since: 0 }),
 		{ new_since: 1 },
-		ok(UNSEEN_IMMEDIATE),
+		{ count: 1, immediate: 1 },
 		null,
 		false,
 	],
 ];
 
 for (const [name, previousSummary, counts, answer, shown, asks] of PAGE_LOAD_CASES) {
-	test(`when the page loads, the sticky announcement toast with ${name}: ${shown ?? "none"}`, async () => {
-		const { calls, fetchItems } = fetcher(answer);
+	test(`at page load, the announcement toast with ${name}: ${shown ?? "none"}`, async () => {
+		const { calls, fetchItems: fetchUnseen } = fetcher(answer);
 		const toasts = [];
-		const listener = toastUnseenImmediate({ fetchItems, show: (count) => toasts.push(count) });
+		const listener = toastUnseenImmediate({
+			fetchUnseen,
+			show: (count) => toasts.push(count),
+		});
 
 		await listener({ previous: previousSummary, summary: loadedSummary(counts) });
 
 		assert.deepEqual(toasts, shown === null ? [] : [shown]);
-		assert.deepEqual(calls, asks ? [[ANNOUNCEMENTS, 0, 50]] : []);
+		assert.equal(calls.length, asks ? 1 : 0);
 	});
 }
 
 test("when the page loads, a summary without the announcements source raises no announcement toast", async () => {
-	const { calls, fetchItems } = fetcher(ok(UNSEEN_IMMEDIATE));
+	const { calls, fetchItems: fetchUnseen } = fetcher({ count: 1, immediate: 1 });
 	const toasts = [];
-	const listener = toastUnseenImmediate({ fetchItems, show: (count) => toasts.push(count) });
+	const listener = toastUnseenImmediate({ fetchUnseen, show: (count) => toasts.push(count) });
 
 	await listener({
 		previous: null,

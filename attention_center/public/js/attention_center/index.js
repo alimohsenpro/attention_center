@@ -125,7 +125,7 @@ function start() {
 	store.onSummary(
 		guard.safe(
 			toastUnseenImmediate({
-				fetchItems: api.getItems,
+				fetchUnseen: api.getUnseenAnnouncements,
 				show: (count) => showUnseenAnnouncements(store, toasts, count),
 			})
 		)

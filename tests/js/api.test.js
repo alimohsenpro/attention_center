@@ -170,13 +170,14 @@ test("an acknowledgement is a write, queued behind the preference writes", async
 	assert.equal(await acknowledged, answer);
 });
 
-test("an announcement and the page of those to acknowledge are read with their arguments", async () => {
+test("an announcement, the page of those to acknowledge and those not seen are read with their arguments", async () => {
 	const server = fakeServer();
 	const api = createApi(server.call);
 
 	api.getAnnouncement("a1b2c3");
 	api.getAnnouncement("a1b2c3");
 	api.getAnnouncementsToAcknowledge(10, 10);
+	api.getUnseenAnnouncements();
 
 	assert.deepEqual(
 		server.requests.map((request) => [request.method, request.args]),
@@ -186,6 +187,7 @@ test("an announcement and the page of those to acknowledge are read with their a
 				"attention_center.api.get_announcements_to_acknowledge",
 				{ start: 10, page_length: 10 },
 			],
+			["attention_center.api.get_unseen_announcements", {}],
 		]
 	);
 });

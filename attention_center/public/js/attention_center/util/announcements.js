@@ -39,21 +39,22 @@ export async function withAnnouncementPriority(alerts, previous, fetchItems, { p
 
 // The store.onSummary listener that raises the sticky toast of FR-ANN-02 on the first summary of the page load, when
 // an immediate announcement is among those the user has not seen yet: one published while they were away, or whose
-// toast a reload dropped. No later summary raises it (those compare with the previous one, newItemAlerts), and none
-// once the Announcements tab marked the source seen. `fetchItems` answers like get_items; `show(count)` shows the
-// toast for the `count` announcements not seen yet. A failed source or request shows nothing.
-export function toastUnseenImmediate({ fetchItems, show }) {
+// toast a reload dropped. The server tells which those are: published since the user last viewed the Announcements
+// tab, and neither acknowledged nor written by them. No later summary raises it (those compare with the previous one,
+// newItemAlerts). `fetchUnseen()` answers like get_unseen_announcements; `show(count)` shows the toast for the
+// `count` announcements not seen yet. A failed source or request shows nothing.
+export function toastUnseenImmediate({ fetchUnseen, show }) {
 	return async ({ previous, summary }) => {
 		if (previous) return;
 		const source = summary.sources.find((candidate) => candidate.key === ANNOUNCEMENTS);
 		if (source?.state !== "ok" || !source.new_since) return;
-		const items = await fetchAnnouncements(fetchItems);
-		if (
-			items &&
-			newest(items, source.new_since).some((item) => item.priority === "immediate")
-		) {
-			show(source.new_since);
+		let unseen;
+		try {
+			unseen = await fetchUnseen();
+		} catch {
+			return;
 		}
+		if (unseen.immediate) show(unseen.count);
 	};
 }
 
@@ -66,12 +67,4 @@ async function fetchAnnouncements(fetchItems) {
 		return null;
 	}
 	return answer?.state === "ok" ? answer.items : null;
-}
-
-// The `count` most recent items: the source's `new_since` counts those published after the user last looked, so
-// these are the ones not seen yet. Equal dates fall on the same side of that time.
-function newest(items, count) {
-	return [...items]
-		.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
-		.slice(0, count);
 }
