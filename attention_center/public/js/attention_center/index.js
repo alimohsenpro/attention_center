@@ -1,5 +1,7 @@
 import { coalesce } from "./alerts/coalesce.js";
+import { autoOpenOnLogin } from "./alerts/login.js";
 import { newItemAlerts } from "./alerts/policy.js";
+import { startReminder } from "./alerts/reminder.js";
 import { createSound } from "./alerts/sound.js";
 import { alertId, CHANNEL_NAME, createTabs } from "./alerts/tabs.js";
 import { createApi, createTransport } from "./api.js";
@@ -20,6 +22,8 @@ const WINDOW_BUNDLE = "attention_center_window.bundle.js";
 const SHORTCUT = "alt+shift+a";
 // The toast id of the hint that the browser blocks the sound.
 const SOUND_HINT = "sound-hint";
+// The toast id of the periodic reminder.
+const REMINDER_TOAST = "reminder";
 
 const guard = createGuard();
 const observe = (callback) => new MutationObserver(guard.safe(callback));
@@ -62,6 +66,15 @@ function start() {
 	});
 	const toasts = createToasts(shadow, { onOpen: openWindow, safe: guard.safe, announce });
 	const sound = createAlertSound(boot, { store, launcher, toasts });
+	const reminder = startReminder({
+		intervalHours: boot.settings.reminder_interval_hours,
+		store,
+		storage: localStorage,
+		page: document,
+		systemNow: () => frappe.datetime.system_datetime(),
+		remind: guard.safe(remindOfAttention({ toasts, sound })),
+		safe: guard.safe,
+	});
 	frappe.ui.keys?.add_shortcut?.({
 		shortcut: SHORTCUT,
 		action: toggleWindow,
@@ -87,6 +100,20 @@ function start() {
 				toasts,
 				sound,
 				coalesceSeconds: boot.settings.coalesce_seconds,
+			})
+		)
+	);
+	store.onSummary(
+		guard.safe(
+			autoOpenOnLogin({
+				shouldAutoOpen: boot.should_auto_open,
+				store,
+				open: (newSince) => openWindow(null, newSince),
+				onOpened: () => {
+					reminder.restart();
+					// If recording it fails, the next page load of this login session opens the window again.
+					api.noteAutoOpened().catch(() => {});
+				},
 			})
 		)
 	);
@@ -141,19 +168,26 @@ function createLiveRegion(shadow) {
 	};
 }
 
-// Opens the window on a tab (null for "All"), loading its bundle on the first call [NFR-PERF-02]. The bundle
-// is added as a <script> rather than through frappe.require, which freezes the desk while it loads and never
-// unfreezes it when the request fails. A bundle that does not load is like a failed request: the next click
-// tries again.
+// Opens the window on a tab (null for "All"), loading its bundle on the first call [NFR-PERF-02], and resolves
+// whether it opened. `newSince` is the "new since you last looked" count the window shows when it opens by
+// itself at login. The bundle is added as a <script> rather than through frappe.require, which freezes the desk
+// while it loads and never unfreezes it when the request fails. A bundle that does not load is like a failed
+// request: the next click tries again.
 function windowOpener(shadow, options) {
 	let ready = null;
-	return (tab = null) => {
+	return (tab = null, newSince = null) => {
 		ready ??= loadScript(frappe.boot.assets_json?.[WINDOW_BUNDLE]).then(
 			guard.safe(() => window.attention_center_window.createWindow(shadow, options))
 		);
-		ready.then(
-			guard.safe(() => setOpen(options.store, true, tab)),
-			() => (ready = null)
+		return ready.then(
+			guard.safe(() => {
+				setOpen(options.store, true, tab, newSince);
+				return true;
+			}),
+			() => {
+				ready = null;
+				return false;
+			}
 		);
 	};
 }
@@ -211,9 +245,10 @@ function createAlertSound(boot, { store, launcher, toasts }) {
 	return sound;
 }
 
-// `tab` is the tab the window shows when it opens, or switches to when it is open already.
-function setOpen(store, open, tab = null) {
-	store.set({ ui: { ...store.get().ui, open, tab } });
+// `tab` is the tab the window shows when it opens, or switches to when it is open already; `newSince` the count
+// of its "new since you last looked" line, null for none.
+function setOpen(store, open, tab = null, newSince = null) {
+	store.set({ ui: { ...store.get().ui, open, tab, newSince } });
 }
 
 // Pulses the launcher, and shows one toast and plays one sound per burst, when a summary brings new items (§7.4,
@@ -240,6 +275,22 @@ function alertOnNewItems(store, { launcher, toasts, sound, coalesceSeconds }) {
 			toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
 		}
 		return sound.alert(result.sound, alertId(alerts, summary));
+	};
+}
+
+// Shows the periodic reminder (§7.4): a toast, which opens the window only when the user clicks it, and the
+// reminder tone in one tab of the browser unless Do Not Disturb keeps it silent. Its text names no number:
+// totals.attention may count an item that is both urgent and overdue twice (§5).
+function remindOfAttention({ toasts, sound }) {
+	return ({ id, level, sticky, sound: role }) => {
+		toasts.show({
+			id: REMINDER_TOAST,
+			level,
+			sticky,
+			tab: null,
+			text: __("Reminder: urgent or overdue items are still waiting for you"),
+		});
+		return role ? sound.alert(role, id) : undefined;
 	};
 }
 

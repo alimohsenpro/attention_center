@@ -196,3 +196,7 @@
 "Urgent: {0}","عاجل: {0}",""
 "Immediate: {0}","فوري: {0}",""
 "Your browser blocked the alert sound. Click anywhere on the page to turn sound on.","منع المتصفح صوت التنبيه. انقر في أي مكان في الصفحة لتشغيل الصوت.",""
+"Reminder: urgent or overdue items are still waiting for you","تذكير: ما زالت لديك عناصر عاجلة أو متأخرة بانتظارك",""
+"Nothing new since you last looked","لا جديد منذ آخر اطلاع لك",""
+"1 new item since you last looked","عنصر جديد واحد منذ آخر اطلاع لك",""
+"{0} new items since you last looked","عناصر جديدة منذ آخر اطلاع لك: {0}",""

@@ -133,6 +133,25 @@ export const WINDOW_STYLES = `
 	font-weight: 700;
 }
 
+/* The "new since you last looked" line of the window that opened by itself at login. */
+.summary-strip {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	padding-block: 8px;
+	padding-inline: 24px;
+	background: var(--ac-surface-2);
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.summary-strip svg {
+	flex: none;
+	color: var(--ac-gold);
+}
+
 .icon-button {
 	display: inline-flex;
 	align-items: center;
@@ -511,6 +530,10 @@ tr[data-overdue] time {
 @container ac-window (width < 720px) {
 	.window-header {
 		padding-inline: 16px 8px;
+	}
+
+	.summary-strip {
+		padding-inline: 16px;
 	}
 
 	.tabs {

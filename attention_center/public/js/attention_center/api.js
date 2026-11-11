@@ -50,5 +50,6 @@ export function createApi(call) {
 			read("get_items", { source, start, page_length: pageLength }),
 		markSeen: (source) => write("mark_seen", { source }),
 		setPreferences: (prefs) => write("set_preferences", { prefs }),
+		noteAutoOpened: () => write("note_auto_opened", {}),
 	};
 }
