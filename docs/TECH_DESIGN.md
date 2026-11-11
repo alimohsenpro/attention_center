@@ -24,6 +24,7 @@ attention_center/                     Python package
   hooks.py
   api.py                              whitelisted endpoints
   boot.py                             extend_bootinfo
+  permissions.py                      the manager roles and the check every manager-only entry point makes
   install.py                          after_install / after_migrate
   engine/
     contract.py                       constants, TypedDicts, validation of source defs and items
@@ -35,6 +36,7 @@ attention_center/                     Python package
     preferences.py                    defaults + per-user preferences, watermarks
   sources/
     approvals.py                      Workflow Action (python source)
+    announcements.py                  announcements: python source, audience rule, acknowledgement, receipts
     builtin.py                        definitions of the built-in sources
   attention_center/doctype/           DocTypes (module "Attention Center") with their form scripts
   attention_center/workspace/         the managers' workspace
@@ -142,10 +144,43 @@ with explicit own-user checks. Created lazily on first write.
 
 ### 3.4 Release 0.2
 
-`Attention Announcement` (title, body Text Editor sanitised on save, priority, `valid_from`,
-`valid_to`, audience: `all_users` Check / roles / user groups, `requires_acknowledgement`,
-`published` Check) and `Attention Announcement Receipt` (announcement, user, `acknowledged_at`;
-unique on (announcement, user)). Announcements are exposed through a built-in python source.
+`Attention Announcement` (name: random hash, title field `title`) [FR-ANN-01]:
+
+| Field | Type | Notes |
+|---|---|---|
+| `title` | Data, required | |
+| `priority` | Select `Normal\nUrgent\nImmediate` | default Normal |
+| `requires_acknowledgement` | Check | |
+| `published` | Check | default 0 |
+| `valid_from`, `valid_to` | Datetime | `valid_to` empty = until unpublished; otherwise later than `valid_from` |
+| `body` | Text Editor | sanitised on save |
+| `all_users` | Check | default 1 |
+| `roles` | Table MultiSelect → `Attention Source Role` | shown while `all_users` is off |
+| `user_groups` | Table MultiSelect → `Attention Source User Group` | shown while `all_users` is off |
+
+The audience is a union, like source targeting (§4.6): every desk user when `all_users` is set, else
+the holders of any listed role and the members of any listed group. The two targeting tables are the
+source's child DocTypes, told apart by `parenttype`. Controller: every save passes `body` through
+`frappe.utils.html_utils.sanitize_html(…, always_sanitize=True)`; Frappe sanitises a Text Editor too,
+but not when a customisation sets "Ignore XSS Filter" on it [NFR-SEC-03]. A save that publishes
+(`published` turned on, or inserted on) moves an empty or past `valid_from` to now: an announcement
+cannot arrive before it is published, and its date and `new_since` start there; a later edit keeps it.
+A published announcement needs an audience. The roles Frappe gives every user without a `Has Role`
+row (`All`, `Desk User`, `Guest`) are refused, because nobody could list who receives them: the
+message points to `all_users`.
+
+Permissions: System Manager and Attention Manager create, read, write, delete, report and export;
+`Desk User` reads, narrowed by the `permission_query_conditions` and `has_permission` hooks (in the
+controller module) to the announcements the user receives (§4.5), so a desk user can open the form an
+item routes to [FR-PERM-04 AC2]. The hooks leave managers to their DocType permissions. No role gets
+share, print or email: a share would grant read past the `has_permission` hook.
+
+`Attention Announcement Receipt` (`announcement` Link, `user` Link User, `acknowledged_at` Datetime,
+all required; random name) [FR-ANN-03]. `on_doctype_update` adds a unique index on (announcement, user),
+so two requests racing to acknowledge store one receipt. System Manager and Attention Manager read,
+report and export it [FR-ANN-04]; nobody creates or edits receipts in the desk, only
+`acknowledge_announcement` inserts them. Frappe's link check keeps an announcement with receipts from
+being deleted: unpublish it instead.
 
 ## 4. Source contract v1 [FR-SRC-01..06]
 
@@ -263,6 +298,7 @@ are converted to the system time zone. Date strings are accepted in ISO form onl
 | `attention_center.approvals` | action | Python. `frappe.get_list("Workflow Action", filters={"status": "Open"}, fields=[name, reference_doctype, reference_name, workflow_state, creation], limit COUNT_CAP+1)` (its own `permission_query_conditions` restrict rows to the user's roles), then keep rows where `frappe.has_permission(reference_doctype, "read", reference_name)` is true, de-duplicated by (doctype, name). Title: the document's title field value, falling back to the name. `type_label`: translated DocType. `status_label`: `workflow_state`. Recipients: users holding any permitted role, capped at 200; above the cap, broadcast (see §6) |
 | `attention_center.assignments` | action | Declarative on `ToDo`: `status = Open`, `allocated_to = {user}`; title = `description` (HTML stripped), from = `assigned_by`, date = `creation`, due = `date`, priority map `{"High": "urgent"}`, recipient field `allocated_to`. Route: the reference document when `reference_type`/`reference_name` are set, else the ToDo |
 | `attention_center.notifications` | info | Declarative on `Notification Log`: `for_user = {user}`, `read = 0`; title = `subject` (HTML stripped), from = `from_user`, date = `creation`, recipient field `for_user`. Route: the log's `link`, else its reference document |
+| `attention_center.announcements` | action | Python (`sources/announcements.py`, release 0.2) over the announcements the user receives (below). Count: `count`, `urgent` and `immediate` cover the ones that ask for acknowledgement and are not acknowledged, the user's action items [FR-ANN-02]; `latest` and `new_since` cover every received one, by `valid_from`. Items: awaiting acknowledgement first, then immediate, urgent, normal, newest first within each; status "Awaiting acknowledgement" (orange) or "Acknowledged" (green); type "Announcement", from = the author (`owner`), date = `valid_from`, route = the announcement's form. Watches `Attention Announcement` without `get_recipients`: a change is broadcast (§6) |
 
 The route exception for ToDo and Notification Log is expressed as an optional
 `route_fields: {"route": "...", "doctype": "...", "name": "..."}` mapping in the declarative
@@ -282,8 +318,21 @@ above the cap, so `engine/recipients.py` computes the role holders (§6). It dec
 `watch_doctypes: ["Workflow Action"]`, so its changes reach the realtime handler; the registry also
 routes the DocTypes of the active workflows to it (§6).
 
+Announcements details: `received(user, name=None)` is the audience rule of §3.4 as one `frappe.qb`
+query: published, `valid_from` passed, `valid_to` empty or still ahead, and `all_users` set or a role of
+`frappe.get_roles(user)` in `roles` or the user in a group of `user_groups` (`User Group Member`);
+newest `valid_from` first, at most COUNT_CAP + 1 rows, left-joined to the user's own receipt only. It
+is the read rule of the DocType for everyone but the managers: the `permission_query_conditions` hook
+lists its names, the `has_permission` hook checks the one name. The source runs it rather than
+`frappe.get_list` because the hooks exempt managers, who may read every announcement but receive only
+the ones addressed to them. It returns nothing when the user may not read the DocType, so a site that
+withdraws the `Desk User` permission hides announcements instead of listing items nobody can open
+[FR-PERM-04 AC2]. Like approvals, only the newest 100 received announcements are counted and listed.
+
 "View all" routes: approvals `/app/workflow-action?status=Open`, assignments
-`/app/todo?status=Open`, notifications `/app/notification-log?read=0`. The definitions live in
+`/app/todo?status=Open`, notifications `/app/notification-log?read=0`, announcements
+`/app/attention-announcement` (the list shows what the user receives, and every announcement to a
+manager). The definitions live in
 `sources/builtin.py`; this app's `hooks.py` declares them in `attention_sources` like any consumer app.
 
 ### 4.6 Registry and visibility (`engine/registry.py`)
@@ -314,7 +363,9 @@ System User: Guest and website users get `frappe.PermissionError`), and take no 
 | `mark_seen(source: str \| None = None)` | sets the watermark of the source, or of every visible source, to now |
 | `get_preferences()` / `set_preferences(prefs: dict \| str)` | effective preferences / validated update of own preferences (below) |
 | `note_auto_opened()` | stores the SHA-256 of the current session id; `should_auto_open` is true until it is called in the login session |
-| `test_source(source: str)` | System Manager or Attention Manager (checked with `frappe.get_roles`): `{count: <run_count result>, items: <run_items result, first 5>, duration_ms}` for the caller, for any source, enabled or not; the caller's cached count is dropped first |
+| `test_source(source: str)` | System Manager or Attention Manager (checked with `frappe.get_roles`, `permissions.is_manager`): `{count: <run_count result>, items: <run_items result, first 5>, duration_ms}` for the caller, for any source, enabled or not; the caller's cached count is dropped first |
+| `acknowledge_announcement(announcement: str)` (0.2) | `{announcement, acknowledged_at}`: stores the caller's receipt for an announcement they receive (`received`, §4.5) that asks for acknowledgement, once; a later call answers with the first time. `frappe.PermissionError` with one message for an announcement the caller does not receive and for a missing one; `frappe.ValidationError` when it asks for no acknowledgement. A request that loses the race to the unique index drops Frappe's "must be unique" message and answers with the stored time, read with `for_update` because the row was committed after its snapshot. The receipt is inserted with `ignore_permissions` (users cannot create receipts) and `nudge([user], "attention_center.announcements")` refreshes the caller's other tabs [FR-ANN-03] |
+| `get_announcement_receipts(announcement: str)` (0.2) | Managers only (`permissions.is_manager`): `{acknowledged: [{user, full_name, acknowledged_at}], pending: [{user, full_name}]}`, acknowledgements oldest first, pending users by full name. Receipts come from `frappe.get_list`; the audience (enabled System Users: all of them, or the holders of the roles through `Has Role` and the members of the groups) from `frappe.get_all`, because an Attention Manager need not read `User` and the answer goes to managers only. Someone who acknowledged and left the audience stays in `acknowledged` [FR-ANN-04] |
 
 `totals.attention` = sum over action sources of `urgent + immediate + overdue` (an item that is
 both urgent and overdue may be counted twice in 0.1; acceptable and documented). `totals.action`
@@ -351,6 +402,7 @@ user and the exception type only [NFR-PERF-02, NFR-REL-01].
 - Broadcast: delete the whole count hash for the source and publish once to the site room (no `user`; Frappe's socket server joins only System Users to it) with `{"sources": [...], "broadcast": true}`; clients then wait a random 0–5 s before refetching. A broadcast names no actor, and a source broadcast in a transaction is left out of that transaction's user nudges.
 - Frappe completes and deletes Workflow Actions with queries (`update_completed_workflow_actions`, `clear_workflow_actions`), which raise no document event, from its own `*` hooks, which run before this app's. So a document under an active workflow is watched by approvals: when a save moves it out of a workflow state (`get_doc_before_save()` holds another state) or it is deleted (`on_trash`: its current state), the enabled holders of the roles allowed on the transitions out of that state are nudged with the same query, cap and broadcast rule. The roles come from the cached Workflow definition (`get_workflow_name`, `frappe.get_cached_doc`), not from the action rows, which are already completed or gone; transition conditions are not evaluated, so the audience may be larger than the completed action's, never smaller. An insert, or a save that keeps the state, nudges no approver from the document: the action it creates fires its own insert. `frappe.delete_doc` also runs `on_change` after `on_trash`; that pass adds nothing, since a deleted document has no previous version.
 - Known staleness, bounded by `summary_cache_ttl`: Frappe's bell marks Notification Logs read with `frappe.db.set_value` (`mark_as_read`, `mark_all_as_read`), which raises no event, so the reader's notifications count stays cached until it expires (fixing it would mean overriding core; the client may refetch after the bell is used). A request that computed a count from the snapshot before a commit can store it just after the callback dropped it, which keeps that value for one TTL. A change undone with `rollback(save_point=…)` still sends its (content-free) nudge.
+- Announcements: saving one is broadcast (it may address every desk user); an acknowledgement nudges its user. An announcement whose `valid_from` or `valid_to` passes raises no event: users see it arrive or leave at their next summary once their cached count is older than `summary_cache_ttl` (at the latest the heartbeat after that).
 - `nudge(users: list[str], source_key: str)` is the public helper for consumer apps [FR-RT-03]. It raises `frappe.ValidationError` for a key that names no `Attention Source` and for users that are not a list of user ids, sends after the commit like document nudges, and broadcasts above the cap. Consumer-side call pattern (documented in the provider guide): `if "attention_center" in frappe.get_installed_apps(): frappe.get_attr("attention_center.engine.realtime.nudge")(users, key)`.
 
 ## 7. Client architecture
@@ -541,11 +593,12 @@ DocType JSON; plain desk scripts, not modules of the client bundles).
 
 | Layer | Mechanism |
 |---|---|
-| Endpoint | session user only; Guest and website users rejected; the manager endpoint checks `frappe.get_roles()` for System Manager or Attention Manager (`frappe.only_for` lets everyone through while tests run, so a test could not prove it) |
+| Endpoint | session user only; Guest and website users rejected; the manager endpoints (`test_source`, `get_announcement_receipts`) check `frappe.get_roles()` for System Manager or Attention Manager (`frappe.only_for` lets everyone through while tests run, so a test could not prove it) |
 | Source visibility | enabled ∧ targeting ∧ DocType read permission (declarative) |
 | Rows | `frappe.get_list` (declarative), per-document `frappe.has_permission` (approvals), the source's own logic (python) |
 | Realtime | content-free payload, user rooms, after commit |
 | Storage | preferences readable/writable only by their owner through the API |
+| Announcements (0.2) | desk users read only the announcements they receive (`permission_query_conditions` and `has_permission` built on `received`) and acknowledge only those; receipts are read by managers only |
 | Client | all text escaped; routes restricted to `/app/` |
 
 ## 9. Internationalisation
@@ -563,7 +616,7 @@ follow the user's locale.
 
 ## 10. Test strategy [NFR-MAINT-01]
 
-- **Backend** (`bench --site <site> run-tests --app attention_center`): `FrappeTestCase` from `frappe.tests.utils` (Frappe 15). Each test creates its own users/roles/documents and cleans up via rollback. Mandatory coverage: source-definition validation; declarative executor (placeholders, mapping, caps, ordering); permission filtering with role permissions, a User Permission, and a `permission_query_conditions` fixture DocType created in the test; approvals with "role but no read permission"; targeting narrowing; fault isolation (a raising python source); cache TTL and invalidation; recipients and single nudge per request (`frappe.publish_realtime` patched); API input validation and "cannot read another user's data"; preferences validation; translation completeness.
+- **Backend** (`bench --site <site> run-tests --app attention_center`): `FrappeTestCase` from `frappe.tests.utils` (Frappe 15). Each test creates its own users/roles/documents and cleans up via rollback. Mandatory coverage: source-definition validation; declarative executor (placeholders, mapping, caps, ordering); permission filtering with role permissions, a User Permission, and a `permission_query_conditions` fixture DocType created in the test; approvals with "role but no read permission"; targeting narrowing; fault isolation (a raising python source); cache TTL and invalidation; recipients and single nudge per request (`frappe.publish_realtime` patched); API input validation and "cannot read another user's data"; preferences validation; translation completeness; announcements (0.2): each audience (all, roles, groups) with users outside it, the validity window, one receipt per user, receipts for managers only.
 - **Sample consumer app** (`tests/test_examples.py`): `examples/sample_app` runs as if installed (importable from `examples/`, `frappe.get_installed_apps` patched to list it, so Frappe's own hook loader reads its `hooks.py` and `frappe.get_attr` resolves its paths) over a `Sample Request` DocType the test creates. It checks the sync, what each user sees through the API (with users who must not see the items), who is nudged, the guarded `nudge` call, and that the app imports nothing from `attention_center` [FR-SRC-03 AC1, AC3].
 - **Client pure logic**: `node --test tests/js/*.test.js` (Node 22 no longer takes a directory argument) for policy, coalescing, tab coordination (fake channel/storage/clock), reminder scheduling, escaping and route validation. No browser needed.
 - **UI smoke** (M6-T1): `tests/ui/test_smoke.py`, Python Playwright run by `scripts/ci/run_tests.sh` with the system `python3`, and skipped with the reason when Playwright or its Chromium is missing, as in CI. It completes the setup wizard if needed, serves the site with `bench serve`, creates a desk user with an assignment and a notification, and checks the launcher and the window in English (LTR) and Arabic (RTL), light and dark: the inline-end corner, translated texts, the theme's surface, `Esc` and the shortcut, and the three display modes right to left. `AC_UI_SCREENSHOTS=<dir>` keeps a screenshot of each window. Kept small.

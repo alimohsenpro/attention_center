@@ -29,9 +29,10 @@ bench build --app attention_center      # when get-app was run with --skip-asset
 bench restart                           # production benches
 ```
 
-The install creates the role **Attention Manager**, the settings, and three built-in sources:
+The install creates the role **Attention Manager**, the settings, and the built-in sources:
 **Approvals** (open Workflow Actions on documents the user may read), **Assignments** (open ToDos
-allocated to the user) and **Notifications** (the user's unread Notification Logs). Every desk user
+allocated to the user), **Notifications** (the user's unread Notification Logs) and, on the way to
+release 0.2, **Announcements** (the announcements the user receives). Every desk user
 then gets the launcher in the bottom corner on the inline-end side (bottom left in Arabic, bottom
 right in English); `Alt+Shift+A` opens and closes the window.
 
@@ -78,6 +79,16 @@ One document per source (`/app/attention-source`).
 - **New sources from the desk** are DocType queries: a DocType, filters as JSON (`[["status", "=", "Open"], ["assigned_to", "=", "{user}"]]`, with the placeholders `{user}` and `{today}`), the fields for title, date, from, priority, due and status, an optional priority map, recipient fields and a "View all" route. A user sees such a source only if they may read its DocType.
 - **Test for my user** runs a saved source with your own permissions and shows the count, the first five items and the duration.
 
+### Attention Announcement
+
+Release 0.2 work in progress: the backend is in place, the window's Announcements tab and acknowledge
+button come next. One document per announcement (`/app/attention-announcement`).
+
+- **Audience:** All Desk Users, or the holders of any listed role and the members of any listed user group. A user outside the audience can neither see nor acknowledge it.
+- **Published** and the **Valid From** / **Valid To** window decide when it shows; publishing moves an empty or earlier start to the moment of publishing. Unpublish an announcement rather than delete it once users acknowledged it.
+- **Requires Acknowledgement:** until a user acknowledges it, it counts among their action items, with its priority. Who acknowledged and when is in **Attention Announcement Receipt**, which only System Managers and Attention Managers can read and export.
+- The body is rich text, sanitised on every save.
+
 ### Sources from your own app
 
 Declare them in your app's `hooks.py`: [`docs/PROVIDER_CONTRACT.md`](docs/PROVIDER_CONTRACT.md) is the
@@ -89,6 +100,7 @@ python source.
 - **Capped counts.** A count reads the newest 100 rows of a source and shows "99+" beyond 99. An urgent or overdue row older than the newest 100 is not counted, and past 100 pending rows the rest of a list is in date order only.
 - **Freshness.** Counts are kept per user for the Summary Cache TTL. A change saved as a document refreshes the users concerned at once (with the socket server); a change made with a direct database write (for example Frappe's bell marking notifications read, or a bulk update by an app that does not call `nudge`) shows within the TTL after the next refresh. Without the socket server, a tab refreshes when it becomes visible and on the heartbeat.
 - **Time budget.** Each database statement of a source is stopped after 2 seconds; a source that fails or times out shows as an error in its tab for that user, and the other sources load.
+- **Announcements** count and list the newest 100 a user receives. A start or end time passing raises no event, so the announcement appears or leaves at the user's next refresh after the Summary Cache TTL.
 - **Approvals** examine the newest 100 open Workflow Actions, with one read-permission check per document. Approvers are nudged without evaluating transition conditions, so a few more users than necessary may refresh.
 - **Sound** plays in one tab per browser, not once per user across devices. Browsers block sound until the user first interacts with the page; the launcher pulses and a hint explains it.
 - **Not included:** acting on items from the window (it opens the document), browser or OS notifications (they need HTTPS), email, SMS and mobile push, sources from other sites, and a full-page inbox.
