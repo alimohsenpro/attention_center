@@ -12,7 +12,7 @@ from datetime import datetime
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.query_builder import Order
+from frappe.query_builder import Criterion, Order, Table
 from frappe.utils import cstr, get_fullname, now_datetime
 
 from attention_center.engine import realtime
@@ -58,22 +58,7 @@ def received(user: str, name: str | None = None) -> list[frappe._dict]:
 
 	announcement = frappe.qb.DocType(ANNOUNCEMENT)
 	receipt = frappe.qb.DocType(RECEIPT)
-	role_target = frappe.qb.DocType(ROLE_TARGET)
-	group_target = frappe.qb.DocType(GROUP_TARGET)
-	member = frappe.qb.DocType("User Group Member")
 	now = now_datetime()
-	by_role = (
-		frappe.qb.from_(role_target)
-		.select(role_target.parent)
-		.where((role_target.parenttype == ANNOUNCEMENT) & role_target.role.isin(frappe.get_roles(user)))
-	)
-	by_group = (
-		frappe.qb.from_(group_target)
-		.join(member)
-		.on(member.parent == group_target.user_group)
-		.select(group_target.parent)
-		.where((group_target.parenttype == ANNOUNCEMENT) & (member.user == user))
-	)
 	# A query of its own rather than frappe.get_list: this is the rule the DocType's permission hooks apply, and
 	# get_list exempts the managers from it. The user's own receipt comes along; nobody else's is read.
 	query = (
@@ -92,9 +77,7 @@ def received(user: str, name: str | None = None) -> list[frappe._dict]:
 		.where(announcement.published == 1)
 		.where(announcement.valid_from <= now)
 		.where(announcement.valid_to.isnull() | (announcement.valid_to > now))
-		.where(
-			(announcement.all_users == 1) | announcement.name.isin(by_role) | announcement.name.isin(by_group)
-		)
+		.where(_addressed_to(announcement, user))
 		.orderby(announcement.valid_from, order=Order.desc)
 		.orderby(announcement.name, order=Order.desc)
 		.limit(COUNT_CAP + 1)
@@ -102,6 +85,26 @@ def received(user: str, name: str | None = None) -> list[frappe._dict]:
 	if name is not None:
 		query = query.where(announcement.name == name)
 	return query.run(as_dict=True)
+
+
+def _addressed_to(announcement: Table, user: str) -> Criterion:
+	"""Every desk user, or a role the user holds, or a user group they belong to: a union, like source targeting."""
+	role_target = frappe.qb.DocType(ROLE_TARGET)
+	group_target = frappe.qb.DocType(GROUP_TARGET)
+	member = frappe.qb.DocType("User Group Member")
+	by_role = (
+		frappe.qb.from_(role_target)
+		.select(role_target.parent)
+		.where((role_target.parenttype == ANNOUNCEMENT) & role_target.role.isin(frappe.get_roles(user)))
+	)
+	by_group = (
+		frappe.qb.from_(group_target)
+		.join(member)
+		.on(member.parent == group_target.user_group)
+		.select(group_target.parent)
+		.where((group_target.parenttype == ANNOUNCEMENT) & (member.user == user))
+	)
+	return (announcement.all_users == 1) | announcement.name.isin(by_role) | announcement.name.isin(by_group)
 
 
 def awaits_acknowledgement(row: frappe._dict) -> bool:
@@ -153,7 +156,7 @@ def receipts(name: str) -> dict:
 		order_by="acknowledged_at asc, user asc",
 		limit_page_length=0,
 	)
-	addressed = audience(announcement)
+	addressed = _audience(announcement)
 	full_names = {user.name: user.full_name for user in addressed}
 	done = {row.user for row in acknowledged}
 	return {
@@ -172,7 +175,7 @@ def receipts(name: str) -> dict:
 	}
 
 
-def audience(announcement: Document) -> list[frappe._dict]:
+def _audience(announcement: Document) -> list[frappe._dict]:
 	"""The enabled desk users the announcement is addressed to, with their full names, ordered by full name."""
 	# get_all: a manager's view of whom an announcement addresses, and Attention Managers need not read User.
 	users = frappe.get_all(
