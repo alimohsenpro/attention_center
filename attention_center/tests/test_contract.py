@@ -202,6 +202,8 @@ class TestItemNormalisation(FrappeTestCase):
 				"id": "REQ-1",
 				"title": "Review the plan",
 				"route": "/app/todo/REQ-1",
+				"reference_doctype": None,
+				"reference_name": None,
 				"type_label": "Request",
 				"from_label": "Front Desk",
 				"date": "2026-11-09T10:30:15",
@@ -218,7 +220,19 @@ class TestItemNormalisation(FrappeTestCase):
 
 		self.assertEqual((item["id"], item["priority"], item["status_color"]), ("42", "normal", "gray"))
 		self.assertEqual(
-			[item[key] for key in ("type_label", "from_label", "date", "due", "status_label")], [None] * 5
+			[
+				item[key]
+				for key in (
+					"reference_doctype",
+					"reference_name",
+					"type_label",
+					"from_label",
+					"date",
+					"due",
+					"status_label",
+				)
+			],
+			[None] * 7,
 		)
 		self.assertFalse(item["overdue"])
 
@@ -255,6 +269,18 @@ class TestItemNormalisation(FrappeTestCase):
 		}.items():
 			with self.subTest(case):
 				self.assertEqual(normalize_item(raw)["route"], "/app/todo/TD%200001")
+
+	def test_the_item_keeps_the_document_it_is_about_also_when_its_route_opens_another_page(self):
+		item = normalize_item(
+			{**ITEM, "route": "/app/todo?status=Open", "reference_doctype": "Note", "reference_name": 7}
+		)
+		half = normalize_item({**ITEM, "reference_doctype": "Note"})
+
+		self.assertEqual(
+			(item["route"], item["reference_doctype"], item["reference_name"]),
+			("/app/todo?status=Open", "Note", "7"),
+		)
+		self.assertEqual((half["reference_doctype"], half["reference_name"]), (None, None))
 
 	def test_dates_become_iso_text_and_overdue_follows_the_due_date(self):
 		now = now_datetime().replace(microsecond=0)

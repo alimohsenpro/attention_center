@@ -52,6 +52,8 @@ class Item(TypedDict):
 	id: str
 	title: str
 	route: str
+	reference_doctype: str | None
+	reference_name: str | None
 	type_label: str | None
 	from_label: str | None
 	date: str | None
@@ -213,8 +215,11 @@ def normalize_item(raw: object) -> Item | None:
 		return None
 
 	item_id = _item_id(raw.get("id"))
-	title = _plain_text(raw.get("title"))
-	route = _item_route(raw)
+	title = plain_text(raw.get("title"))
+	reference_doctype, reference_name = _reference(raw)
+	route = raw["route"] if is_desk_route(raw.get("route")) else None
+	if not route and reference_doctype:
+		route = form_route(reference_doctype, reference_name)
 	if not (item_id and title and route):
 		return None
 
@@ -223,6 +228,9 @@ def normalize_item(raw: object) -> Item | None:
 		"id": item_id,
 		"title": title[:TITLE_MAX_LENGTH],
 		"route": route,
+		# The document the item is about, also when its route opens another page: a reminder names it (FR-SNZ-01).
+		"reference_doctype": reference_doctype,
+		"reference_name": reference_name,
 		"type_label": _text(raw.get("type_label")),
 		"from_label": _text(raw.get("from_label")) or _full_name(raw.get("from_user")),
 		"date": _iso(parse_when(raw.get("date"))),
@@ -269,12 +277,10 @@ def parse_when(value: object) -> date | datetime | None:
 	return value if isinstance(value, date) else None
 
 
-def _item_route(raw: dict) -> str | None:
-	if is_desk_route(raw.get("route")):
-		return raw["route"]
+def _reference(raw: dict) -> tuple[str | None, str | None]:
 	doctype = _text(raw.get("reference_doctype"))
 	name = _item_id(raw.get("reference_name"))
-	return form_route(doctype, name) if doctype and name else None
+	return (doctype, name) if doctype and name else (None, None)
 
 
 def _item_id(value: object) -> str | None:
@@ -283,7 +289,8 @@ def _item_id(value: object) -> str | None:
 	return _text(value)
 
 
-def _plain_text(value: object) -> str | None:
+def plain_text(value: object) -> str | None:
+	"""Text without HTML and with its whitespace collapsed; None for anything else or nothing left."""
 	if not isinstance(value, str):
 		return None
 	return _text(" ".join(html.unescape(strip_html(value)).split()))

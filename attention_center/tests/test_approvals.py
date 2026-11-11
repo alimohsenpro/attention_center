@@ -180,6 +180,8 @@ class TestApprovals(FrappeTestCase):
 					"id": action,
 					"title": "Taxi to the airport",
 					"route": f"/app/attention-test-expense/{expense}",
+					"reference_doctype": EXPENSE,
+					"reference_name": expense,
 					"type_label": EXPENSE,
 					"from_label": None,
 					"date": created.isoformat(timespec="seconds"),
