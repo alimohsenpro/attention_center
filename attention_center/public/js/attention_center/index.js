@@ -1,5 +1,7 @@
 import { coalesce } from "./alerts/coalesce.js";
 import { newItemAlerts } from "./alerts/policy.js";
+import { createSound } from "./alerts/sound.js";
+import { alertId, CHANNEL_NAME, createTabs } from "./alerts/tabs.js";
 import { createApi, createTransport } from "./api.js";
 import { startRefreshLoop } from "./realtime.js";
 import { createStore } from "./store.js";
@@ -16,6 +18,8 @@ const HOST_ID = "attention-center-root";
 const MIRRORED_ATTRIBUTES = ["dir", "lang", "data-theme"];
 const WINDOW_BUNDLE = "attention_center_window.bundle.js";
 const SHORTCUT = "alt+shift+a";
+// The toast id of the hint that the browser blocks the sound.
+const SOUND_HINT = "sound-hint";
 
 const guard = createGuard();
 const observe = (callback) => new MutationObserver(guard.safe(callback));
@@ -57,6 +61,7 @@ function start() {
 		onToggleCollapsed: guard.safe(() => toggleCollapsed(store, api)),
 	});
 	const toasts = createToasts(shadow, { onOpen: openWindow, safe: guard.safe, announce });
+	const { sound, tabs } = createAlertSound(boot, { store, launcher, toasts });
 	frappe.ui.keys?.add_shortcut?.({
 		shortcut: SHORTCUT,
 		action: toggleWindow,
@@ -80,6 +85,8 @@ function start() {
 			alertOnNewItems(store, {
 				launcher,
 				toasts,
+				sound,
+				tabs,
 				coalesceSeconds: boot.settings.coalesce_seconds,
 			})
 		)
@@ -172,14 +179,46 @@ function loadScript(src) {
 	});
 }
 
+// The alerts' sound (§7.5), played by one tab of the browser. A tab the browser keeps silent until a gesture pulses
+// the launcher and, the first time, shows a hint until the gesture comes [FR-SND-03].
+function createAlertSound(boot, { store, launcher, toasts }) {
+	const channel = new BroadcastChannel(CHANNEL_NAME);
+	guard.addCleanup(() => channel.close());
+	const tabs = createTabs({ channel, storage: localStorage, page: document, safe: guard.safe });
+	const sound = createSound({
+		tones: boot.tones,
+		settings: boot.settings,
+		getPrefs: () => store.get().prefs,
+		muted: Boolean(frappe.boot.user.mute_sounds),
+		now: () => frappe.datetime.system_datetime(),
+		claim: tabs.claim,
+		page: window,
+		safe: guard.safe,
+		onLocked: (first) => {
+			launcher.pulse();
+			if (first) {
+				toasts.notice(
+					SOUND_HINT,
+					__(
+						"Your browser blocked the alert sound. Click anywhere on the page to turn sound on."
+					)
+				);
+			}
+		},
+		onUnlocked: () => toasts.dismiss(SOUND_HINT),
+	});
+	return { sound, tabs };
+}
+
 // `tab` is the tab the window shows when it opens, or switches to when it is open already.
 function setOpen(store, open, tab = null) {
 	store.set({ ui: { ...store.get().ui, open, tab } });
 }
 
-// Pulses the launcher and shows one toast per burst when a summary brings new items (§7.4); the alert policy
-// decides which items count, alerts/coalesce.js merges a burst.
-function alertOnNewItems(store, { launcher, toasts, coalesceSeconds }) {
+// Pulses the launcher, and shows one toast and plays one sound per burst, when a summary brings new items (§7.4,
+// §7.5); the alert policy decides which items count, alerts/coalesce.js merges a burst, and of the browser's tabs
+// one plays the sound.
+function alertOnNewItems(store, { launcher, toasts, sound, tabs, coalesceSeconds }) {
 	let burst = null;
 	return ({ previous, summary, actor }) => {
 		const alerts = newItemAlerts({
@@ -194,10 +233,15 @@ function alertOnNewItems(store, { launcher, toasts, coalesceSeconds }) {
 		launcher.pulse();
 		const result = coalesce(burst, alerts, Date.now(), coalesceSeconds * 1000);
 		burst = result.burst;
-		if (!result.toast) return;
-		const { id, count, level, sticky, source } = result.toast;
-		const label = summary.sources.find((candidate) => candidate.key === source)?.label;
-		toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
+		if (result.toast) {
+			const { id, count, level, sticky, source } = result.toast;
+			const label = summary.sources.find((candidate) => candidate.key === source)?.label;
+			toasts.show({ id, level, sticky, tab: source, text: newItemsText(count, label) });
+		}
+		const id = alertId(alerts, summary);
+		if (result.sound) return sound.play(result.sound, id);
+		// The burst already sounded for these alerts, so a tab that fetches them later stays silent too.
+		if (id) tabs.mark(id);
 	};
 }
 

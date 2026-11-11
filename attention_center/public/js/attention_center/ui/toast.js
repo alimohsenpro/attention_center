@@ -26,7 +26,8 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		shown.delete(id);
 	}
 
-	function create(id, sticky) {
+	// `viewable`: the toast has a "View" action, and a click on it opens the window.
+	function create(id, sticky, viewable) {
 		if (shown.size >= MAX_TOASTS) {
 			const drop = toastToDrop([...shown.values()], sticky);
 			if (!drop) return null;
@@ -34,8 +35,6 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		}
 		const node = element("div", "toast");
 		const text = element("span", "toast-text");
-		const view = element("button", "toast-action", __("View", null, "Attention Center"));
-		view.type = "button";
 		const close = element("button", "toast-close");
 		close.type = "button";
 		close.innerHTML = ICONS.x;
@@ -43,7 +42,13 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		close.setAttribute("aria-label", closeLabel);
 		close.title = closeLabel;
 		const icon = element("span", "toast-icon");
-		node.append(icon, text, view, close);
+		node.append(icon, text);
+		if (viewable) {
+			const view = element("button", "toast-action", __("View", null, "Attention Center"));
+			view.type = "button";
+			node.append(view);
+		}
+		node.append(close);
 		// A press on a toast leaves focus where it was: inside the modal dialog, whose focus trap and Escape
 		// would stop working once the pressed button is removed, or in the field the user is typing in.
 		node.addEventListener(
@@ -55,11 +60,11 @@ export function createToasts(root, { onOpen, safe, announce }) {
 			safe((event) => {
 				const toast = shown.get(id);
 				dismiss(id);
-				if (!close.contains(event.target)) onOpen(toast.tab);
+				if (viewable && !close.contains(event.target)) onOpen(toast.tab);
 			})
 		);
 		stack.append(node);
-		const toast = { id, node, icon, text, timer: null };
+		const toast = { id, node, icon, text, sticky, timer: null };
 		shown.set(id, toast);
 		return toast;
 	}
@@ -67,7 +72,7 @@ export function createToasts(root, { onOpen, safe, announce }) {
 	// Shows the toast with this id, or updates it in place when it is still shown. A new toast that finds no room
 	// (toastToDrop) is not shown.
 	function show({ id, text, level, sticky, tab }) {
-		const toast = shown.get(id) ?? create(id, sticky);
+		const toast = shown.get(id) ?? create(id, sticky, true);
 		if (!toast) return;
 		Object.assign(toast, { sticky, tab });
 		toast.node.dataset.level = level;
@@ -82,7 +87,18 @@ export function createToasts(root, { onOpen, safe, announce }) {
 		announce(spokenText(level, text));
 	}
 
-	return { show };
+	// Shows a notice that is no alert, such as the hint that the browser blocks the sound: no "View", and no
+	// timer, so that a user who was away still finds it; it goes when closed, clicked or dismissed.
+	function notice(id, text) {
+		const toast = shown.get(id) ?? create(id, false, false);
+		if (!toast) return;
+		toast.node.dataset.level = "normal";
+		toast.icon.innerHTML = ICONS.soundOff;
+		toast.text.textContent = text;
+		announce(text);
+	}
+
+	return { show, notice, dismiss };
 }
 
 // The text of a toast for new items: their number and, when they all come from one source, its label.
