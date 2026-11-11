@@ -39,6 +39,7 @@ from functools import partial
 from pathlib import Path
 
 import frappe
+from frappe.utils import now_datetime
 from frappe.utils.password import update_password
 
 from attention_center import api, boot
@@ -74,8 +75,8 @@ def role_name(number: int) -> str:
 
 def seed() -> None:
 	clear()
-	now = datetime.now()
-	# Frappe refuses more than 60 new users a minute unless they are imported. An import skips the defaults on
+	now = now_datetime()
+	# Frappe refuses more than 60 new users an hour unless they are imported. An import skips the defaults on
 	# insert, so the documents get them from new_doc.
 	frappe.flags.in_import = True
 	for number in range(1, USERS + 1):
@@ -88,6 +89,10 @@ def seed() -> None:
 			send_welcome_email=0,
 			roles=[{"role": role_name(number)}],
 		).insert(ignore_permissions=True)
+		# Older than their rows, as on a real site; that also leaves the hourly limit to a test that adds a user.
+		frappe.db.set_value(
+			"User", user_id(number), "creation", now - timedelta(minutes=ROWS), update_modified=False
+		)
 	frappe.flags.in_import = False
 
 	todos, logs, actions, permitted_roles = [], [], [], []
