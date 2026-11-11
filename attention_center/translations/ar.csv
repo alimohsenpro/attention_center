@@ -270,3 +270,8 @@
 "{0} is given to every user. Tick {1} instead.","{0} يُمنح لكل المستخدمين. اختر {1} بدلًا منه.",""
 "Choose who receives the announcement: {0}, {1} or {2}.","اختر من يصله الإعلان: {0} أو {1} أو {2}.",""
 "{0} must be later than {1}.","يجب أن يكون {0} بعد {1}.",""
+"Attention Announcements","إعلانات مركز الانتباه",""
+"Announcement Acknowledgements","تأكيدات الاطلاع على الإعلانات",""
+"Who acknowledged","من اطّلع عليه",""
+"Full Name","الاسم الكامل","Attention Announcement Receipt"
+"Status","الحالة","Attention Announcement Receipt"

@@ -1,6 +1,8 @@
 from unittest.mock import patch
 
 import frappe
+from frappe.desk.query_report import run as run_report
+from frappe.permissions import can_export
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import add_to_date, now_datetime
 
@@ -13,6 +15,7 @@ KEY = "attention_center.announcements"
 SOURCE = "Attention Source"
 ANNOUNCEMENT = "Attention Announcement"
 RECEIPT = "Attention Announcement Receipt"
+REPORT = "Announcement Acknowledgements"
 NOT_AVAILABLE = "This announcement is not available to you."
 
 
@@ -401,3 +404,178 @@ class TestReceipts(AnnouncementTestCase):
 	def test_the_receipts_of_an_announcement_that_does_not_exist_are_refused(self):
 		with self.assertRaises(frappe.DoesNotExistError):
 			self.as_user(self.manager, api.get_announcement_receipts, "no-such-announcement")
+
+
+class TestWindow(AnnouncementTestCase):
+	def hide_the_source(self):
+		frappe.db.set_value(SOURCE, KEY, "enabled", 0)
+		registry.clear_visibility_cache()
+		self.addCleanup(registry.clear_visibility_cache)
+
+	def test_the_all_tab_gets_only_the_announcements_awaiting_acknowledgement(self):
+		now = now_datetime()
+		for hours_ago, title, values in (
+			(3, "Old normal, to acknowledge", {"requires_acknowledgement": 1}),
+			(2, "Immediate, for information", {"priority": "Immediate"}),
+			(1, "Urgent, acknowledged", {"requires_acknowledgement": 1, "priority": "Urgent"}),
+			(0, "New normal, to acknowledge", {"requires_acknowledgement": 1}),
+		):
+			name = self.announce(title, **values)
+			frappe.db.set_value(ANNOUNCEMENT, name, "valid_from", add_to_date(now, hours=-hours_ago))
+			if title == "Urgent, acknowledged":
+				self.acknowledge(self.outsider, name)
+		self.announce("For the role", requires_acknowledgement=1, all_users=0, roles=[{"role": self.role}])
+
+		first = self.as_user(self.outsider, api.get_announcements_to_acknowledge, page_length=1)
+		second = self.as_user(self.outsider, api.get_announcements_to_acknowledge, start=1, page_length=1)
+
+		self.assertEqual(
+			[
+				(page["state"], [item["title"] for item in page["items"]], page["has_more"])
+				for page in (first, second)
+			],
+			[("ok", ["New normal, to acknowledge"], True), ("ok", ["Old normal, to acknowledge"], False)],
+		)
+		self.assertEqual(first["items"][0]["status_label"], "Awaiting acknowledgement")
+		self.assertEqual(
+			[
+				item["title"]
+				for item in self.as_user(self.role_holder, api.get_announcements_to_acknowledge)["items"]
+			],
+			[
+				"Urgent, acknowledged",
+				"For the role",
+				"New normal, to acknowledge",
+				"Old normal, to acknowledge",
+			],
+		)
+
+	def test_the_detail_shows_the_sanitised_body_and_the_users_acknowledgement(self):
+		name = self.announce(
+			"Read the new policy",
+			priority="Urgent",
+			requires_acknowledgement=1,
+			body="<p>The policy <b>changes</b> today.</p><script>alert(1)</script>",
+		)
+		# A body written past the controller is sanitised when it is read.
+		frappe.db.set_value(
+			ANNOUNCEMENT,
+			name,
+			"body",
+			'<p>The policy <b>changes</b> today.</p><img src="x" onerror="alert(1)">',
+		)
+		values = frappe.db.get_value(ANNOUNCEMENT, name, ["valid_from"], as_dict=True)
+
+		detail = self.as_user(self.outsider, api.get_announcement, name)
+
+		self.assertEqual(
+			{key: value for key, value in detail.items() if key != "body"},
+			{
+				"name": name,
+				"title": "Read the new policy",
+				"priority": "urgent",
+				"from_label": "announcement.manager",
+				"date": values.valid_from.isoformat(timespec="seconds"),
+				"valid_to": None,
+				"requires_acknowledgement": True,
+				"acknowledged_at": None,
+			},
+		)
+		self.assertIn("<b>changes</b>", detail["body"])
+		self.assertNotIn("onerror", detail["body"])
+		self.assertNotIn("<script", frappe.db.get_value(ANNOUNCEMENT, name, "body") or "")
+
+		acknowledged_at = self.acknowledge(self.outsider, name)["acknowledged_at"]
+		self.assertEqual(
+			self.as_user(self.outsider, api.get_announcement, name)["acknowledged_at"], acknowledged_at
+		)
+		self.assertIsNone(self.as_user(self.role_holder, api.get_announcement, name)["acknowledged_at"])
+
+	def test_the_detail_is_refused_for_an_announcement_the_user_does_not_receive(self):
+		cases = (
+			("outside the audience", self.announce("For the role", all_users=0, roles=[{"role": self.role}])),
+			("a draft", self.announce("Draft", published=0)),
+			("an announcement that does not exist", "no-such-announcement"),
+		)
+		for case, name in cases:
+			with self.subTest(case), self.assertRaises(frappe.PermissionError) as raised:
+				self.as_user(self.outsider, api.get_announcement, name)
+			self.assertEqual(str(raised.exception), NOT_AVAILABLE)
+		with self.assertRaises(frappe.PermissionError):
+			self.as_user(self.manager, api.get_announcement, cases[0][1])
+
+	def test_both_endpoints_are_refused_while_the_source_is_hidden(self):
+		name = self.announce("Read the new policy", requires_acknowledgement=1)
+		self.hide_the_source()
+
+		for endpoint, arguments in (
+			(api.get_announcements_to_acknowledge, ()),
+			(api.get_announcement, (name,)),
+		):
+			with self.subTest(endpoint=endpoint.__name__), self.assertRaises(frappe.PermissionError):
+				self.as_user(self.outsider, endpoint, *arguments)
+
+
+class TestReceiptReport(AnnouncementTestCase):
+	def run_report(self, user: str, name: str) -> dict:
+		return self.as_user(user, run_report, REPORT, filters={"announcement": name})
+
+	def test_a_manager_sees_who_acknowledged_and_who_has_not_with_the_totals(self):
+		name = self.announce(
+			"Read the new policy",
+			requires_acknowledgement=1,
+			all_users=0,
+			roles=[{"role": self.role}],
+			user_groups=[{"user_group": self.group}],
+		)
+		acknowledged_at = self.acknowledge(self.group_member, name)["acknowledged_at"]
+
+		report = self.run_report(self.manager, name)
+
+		self.assertEqual(
+			[
+				(
+					row["user"],
+					row["status"],
+					row.get("acknowledged_at") and row["acknowledged_at"].isoformat(),
+				)
+				for row in report["result"]
+			],
+			[
+				(self.group_member, "Acknowledged", acknowledged_at),
+				(self.role_holder, "Awaiting acknowledgement", None),
+			],
+		)
+		self.assertEqual(
+			[(entry["label"], entry["value"]) for entry in report["report_summary"]],
+			[("Acknowledged", 1), ("Awaiting acknowledgement", 1)],
+		)
+		self.assertEqual(
+			[column["fieldname"] for column in report["columns"]],
+			["full_name", "user", "status", "acknowledged_at"],
+		)
+
+	def test_the_report_and_its_export_are_refused_to_other_users(self):
+		name = self.announce("Read the new policy", requires_acknowledgement=1)
+		self.acknowledge(self.role_holder, name)
+		execute = frappe.get_attr(
+			"attention_center.attention_center.report.announcement_acknowledgements"
+			".announcement_acknowledgements.execute"
+		)
+
+		for user in (self.role_holder, self.outsider):
+			with self.subTest(user=user):
+				with self.assertRaises(frappe.PermissionError):
+					self.run_report(user, name)
+				with self.assertRaises(frappe.PermissionError):
+					self.as_user(user, execute, frappe._dict(announcement=name))
+				self.assertFalse(self.as_user(user, can_export, RECEIPT))
+		self.assertTrue(self.as_user(self.manager, can_export, RECEIPT))
+
+	def test_an_announcement_that_asks_for_no_acknowledgement_lists_nobody(self):
+		name = self.announce("For information")
+
+		report = self.run_report(self.manager, name)
+
+		self.assertEqual(report["result"], [])
+		self.assertEqual(report["message"], "This announcement does not ask for an acknowledgement.")

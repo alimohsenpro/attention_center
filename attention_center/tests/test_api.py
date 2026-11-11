@@ -35,6 +35,8 @@ ENDPOINTS = {
 	"note_auto_opened": {},
 	"test_source": {"source": TODOS},
 	"acknowledge_announcement": {"announcement": "any"},
+	"get_announcements_to_acknowledge": {},
+	"get_announcement": {"announcement": "any"},
 	"get_announcement_receipts": {"announcement": "any"},
 }
 # The settings' defaults, which ApiTestCase sets.

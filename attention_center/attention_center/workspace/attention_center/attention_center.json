@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\": \"ac-shortcut-1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Center Settings\", \"col\": 4}}, {\"id\": \"ac-shortcut-2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Sources\", \"col\": 4}}]",
+ "content": "[{\"id\": \"ac-shortcut-1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Center Settings\", \"col\": 4}}, {\"id\": \"ac-shortcut-2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Sources\", \"col\": 4}}, {\"id\": \"ac-shortcut-3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Attention Announcements\", \"col\": 4}}, {\"id\": \"ac-shortcut-4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Announcement Acknowledgements\", \"col\": 4}}]",
  "creation": "2026-11-11 13:25:45.022041",
  "custom_blocks": [],
  "docstatus": 0,
@@ -12,7 +12,7 @@
  "is_hidden": 0,
  "label": "Attention Center",
  "links": [],
- "modified": "2026-11-11 13:25:56.089570",
+ "modified": "2026-11-11 18:48:29.489805",
  "modified_by": "Administrator",
  "module": "Attention Center",
  "name": "Attention Center",
@@ -41,6 +41,19 @@
    "label": "Attention Sources",
    "link_to": "Attention Source",
    "type": "DocType"
+  },
+  {
+   "doc_view": "List",
+   "label": "Attention Announcements",
+   "link_to": "Attention Announcement",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Announcement Acknowledgements",
+   "link_to": "Announcement Acknowledgements",
+   "report_ref_doctype": "Attention Announcement Receipt",
+   "type": "Report"
   }
  ],
  "title": "Attention Center"
