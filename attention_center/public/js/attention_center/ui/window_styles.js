@@ -770,8 +770,6 @@ tr[data-overdue] time {
 	display: inline-flex;
 	align-items: center;
 	margin-inline-start: 8px;
-	padding-block: 2px;
-	padding-inline: 6px;
 	vertical-align: top;
 }
 

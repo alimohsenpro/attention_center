@@ -228,7 +228,7 @@ def normalize_item(raw: object) -> Item | None:
 		"id": item_id,
 		"title": title[:TITLE_MAX_LENGTH],
 		"route": route,
-		# The document the item is about, also when its route opens another page: a reminder names it (FR-SNZ-01).
+		# The document the item is about, also when its route opens another page: a reminder names it [FR-SNZ-01].
 		"reference_doctype": reference_doctype,
 		"reference_name": reference_name,
 		"type_label": _text(raw.get("type_label")),
