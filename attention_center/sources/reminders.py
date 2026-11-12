@@ -78,7 +78,10 @@ def _check_readable(doctype: object, name: object) -> None:
 
 
 def _due(user: str) -> list[frappe._dict]:
-	"""The user's reminders that fell due within LISTED_FOR, the latest first, at most COUNT_CAP + 1."""
+	"""The user's reminders that fell due within LISTED_FOR, the latest first, at most COUNT_CAP + 1. None without
+	read permission on Reminder, so that a site withdrawing it hides reminders instead of failing the source."""
+	if not frappe.has_permission(REMINDER, "read", user=user):
+		return []
 	now = now_datetime()
 	return frappe.get_list(
 		REMINDER,

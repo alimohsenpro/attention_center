@@ -434,6 +434,16 @@ class TestEvents(BuiltinSourceTestCase):
 			["I take part", "Their private event", "Their public event"],
 		)
 
+	def test_a_site_that_withdraws_read_permission_hides_events(self):
+		self.add_event("Mine")
+		frappe.db.delete("DocPerm", {"parent": "Event", "role": ("in", ("Desk User", "All"))})
+		# Runs after tearDown: the rollback restores the permissions but not the cached meta.
+		self.addCleanup(frappe.clear_cache, doctype="Event")
+		frappe.clear_cache(doctype="Event")
+
+		self.assertEqual(self.items(self.user), [])
+		self.assertEqual(self.summary(self.user)["count"], 0)
+
 	def test_an_event_is_new_from_the_start_of_the_day_or_from_its_last_change(self):
 		midnight = at(self.today, 0)
 		older = self.add_event("Set up last week")
@@ -555,6 +565,16 @@ class TestDueReminders(BuiltinSourceTestCase):
 		self.assertEqual((counts["count"], counts["new_since"]), (2, 1))
 		self.assertEqual(counts["latest"], now - timedelta(minutes=1))
 		self.assertEqual(self.summary(self.user)["new_since"], 2)
+
+	def test_a_site_that_withdraws_read_permission_hides_reminders(self):
+		self.add_reminder("Due", now_datetime() - timedelta(minutes=5))
+		frappe.db.delete("DocPerm", {"parent": "Reminder", "role": "Desk User"})
+		# Runs after tearDown: the rollback restores the permission but not the cached meta.
+		self.addCleanup(frappe.clear_cache, doctype="Reminder")
+		frappe.clear_cache(doctype="Reminder")
+
+		self.assertEqual(self.items(self.user), [])
+		self.assertEqual(self.summary(self.user)["count"], 0)
 
 	def test_a_change_of_a_reminder_nudges_its_user(self):
 		reminder = frappe.get_doc("Reminder", self.add_reminder("Due", now_datetime()))

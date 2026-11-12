@@ -90,7 +90,10 @@ def occurs_on(event: frappe._dict | Document, day: date) -> bool:
 def _today(user: str, day: date) -> list[frappe._dict]:
 	"""The open events on `day` that the user may read: frappe.get_list applies Event's own rules (their events, public
 	ones and those they take part in). One-off events overlapping the day are read before repeating series, newest
-	first, and at most COUNT_CAP + 1 of them: a site with more open repeating series checks only the newest."""
+	first, and at most COUNT_CAP + 1 of them: a site with more open repeating series checks only the newest. None
+	without read permission on Event, so that a site withdrawing it hides the events instead of failing the source."""
+	if not frappe.has_permission(EVENT, "read", user=user):
+		return []
 	midnight = _midnight(day)
 	candidates = frappe.get_list(
 		EVENT,

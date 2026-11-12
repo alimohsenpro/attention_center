@@ -335,7 +335,8 @@ withdraws the `Desk User` permission hides announcements instead of listing item
 [FR-PERM-04 AC2]. Like approvals, only the newest 100 received announcements are counted and listed.
 
 Release 0.2 adds two info sources [FR-EXT-01], both python sources over Frappe's own DocTypes read with
-`frappe.get_list` as the user:
+`frappe.get_list` as the user. Like announcements, each returns nothing to a user who may not read its DocType, so that a
+site withdrawing the permission hides it instead of failing the source:
 
 - `attention_center.events` ("Today's Events", `sources/events.py`): the open Events the user's calendar shows today.
   `frappe.get_list("Event")` applies Event's permission rules (the user's own events, public ones, those they take part
