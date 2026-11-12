@@ -32,7 +32,9 @@ bench restart                           # production benches
 The install creates the role **Attention Manager**, the settings, and the built-in sources:
 **Approvals** (open Workflow Actions on documents the user may read), **Assignments** (open ToDos
 allocated to the user), **Notifications** (the user's unread Notification Logs) and, on the way to
-release 0.2, **Announcements** (the announcements the user receives). Every desk user
+release 0.2, **Announcements** (the announcements the user receives), **Today's Events** (what the
+user's Frappe calendar shows for today) and **Due Reminders** (the user's Frappe reminders that fell
+due in the last 24 hours). Every desk user
 then gets the launcher in the bottom corner on the inline-end side (bottom left in Arabic, bottom
 right in English); `Alt+Shift+A` opens and closes the window.
 
@@ -91,6 +93,13 @@ the Attention Center workspace). Users read the announcements they receive in th
 - **Immediate** announcements raise a toast that stays until it is closed, whether or not they ask for acknowledgement. A user who opens the desk after one was published gets the toast then, at every page load until they look at the Announcements tab or acknowledge it. A new announcement also shows the launcher's dot until then; one the user acknowledged or wrote is not new to them.
 - The body is rich text, sanitised on every save.
 
+### Remind me later
+
+Release 0.2 work in progress. The clock button beside "Open" on any item offers **In 1 hour**,
+**Tomorrow morning** (9:00 the next day) or a time the user picks. It sets one of Frappe's own reminders
+for the user, about the item's document (which they must be able to read), with the item's title: Frappe
+notifies them when it falls due, and it shows in **Due Reminders**. The item itself stays where it is.
+
 ### Sources from your own app
 
 Declare them in your app's `hooks.py`: [`docs/PROVIDER_CONTRACT.md`](docs/PROVIDER_CONTRACT.md) is the
@@ -103,6 +112,8 @@ python source.
 - **Freshness.** Counts are kept per user for the Summary Cache TTL. A change saved as a document refreshes the users concerned at once (with the socket server); a change made with a direct database write (for example Frappe's bell marking notifications read, or a bulk update by an app that does not call `nudge`) shows within the TTL after the next refresh. Without the socket server, a tab refreshes when it becomes visible and on the heartbeat.
 - **Time budget.** Each database statement of a source is stopped after 2 seconds; a source that fails or times out shows as an error in its tab for that user, and the other sources load.
 - **Announcements** count and list the newest 100 a user receives. A link in an announcement's body opens in a new browser tab. A start or end time passing raises no event, so the announcement appears or leaves at the user's next refresh after the Summary Cache TTL.
+- **Today's Events** follow Frappe's calendar: open events of the user, public events and events they take part in, with repeating events on the days they repeat. One-off events are read before repeating series, at most 100 in all, so on a site with more open repeating series only the newest are checked.
+- **Due Reminders** stay listed for 24 hours after they fall due, since Frappe's reminders have no "done" state. A reminder falling due raises no event: it shows at the user's next refresh after the Summary Cache TTL, while Frappe's own notification of it may come up to 15 minutes earlier.
 - **Approvals** examine the newest 100 open Workflow Actions, with one read-permission check per document. Approvers are nudged without evaluating transition conditions, so a few more users than necessary may refresh.
 - **Sound** plays in one tab per browser, not once per user across devices. Browsers block sound until the user first interacts with the page; the launcher pulses and a hint explains it.
 - **Not included:** acting on items from the window (it opens the document), browser or OS notifications (they need HTTPS), email, SMS and mobile push, sources from other sites, and a full-page inbox.

@@ -38,6 +38,7 @@ ENDPOINTS = {
 	"get_announcements_to_acknowledge": {},
 	"get_announcement": {"announcement": "any"},
 	"get_announcement_receipts": {"announcement": "any"},
+	"remind_me_later": {"remind_at": "2099-01-01 09:00:00", "title": "Anything"},
 }
 # The settings' defaults, which ApiTestCase sets.
 DEFAULT_PREFERENCES = {
@@ -207,6 +208,7 @@ class TestAccess(ApiTestCase):
 				api.set_preferences,
 				api.note_auto_opened,
 				api.acknowledge_announcement,
+				api.remind_me_later,
 			):
 				with self.subTest(endpoint=endpoint.__name__):
 					frappe.local.request = frappe._dict(method="POST")
@@ -667,3 +669,91 @@ class TestTestSource(ApiTestCase):
 
 		with self.assertRaises(frappe.DoesNotExistError):
 			api.test_source("test_app.missing")
+
+
+class TestRemindMeLater(ApiTestCase):
+	def setUp(self):
+		super().setUp()
+		self.in_an_hour = (now_datetime() + timedelta(hours=1)).replace(microsecond=0)
+
+	def reminders_of(self, user: str) -> list[frappe._dict]:
+		return frappe.get_all(
+			"Reminder",
+			filters={"user": user},
+			fields=["owner", "remind_at", "description", "reminder_doctype", "reminder_docname"],
+		)
+
+	def test_the_reminder_is_the_users_own_about_the_items_document(self):
+		todo = add_todo(self.user, "Call the supplier")
+
+		result = api.remind_me_later(self.in_an_hour.isoformat(), "<b>Call</b>  the supplier", "ToDo", todo)
+
+		self.assertEqual(result["remind_at"], self.in_an_hour.isoformat())
+		self.assertEqual(frappe.db.get_value("Reminder", result["reminder"], "user"), self.user)
+		self.assertEqual(
+			self.reminders_of(self.user),
+			[
+				{
+					"owner": self.user,
+					"remind_at": self.in_an_hour,
+					"description": "Call the supplier",
+					"reminder_doctype": "ToDo",
+					"reminder_docname": todo,
+				}
+			],
+		)
+		self.assertEqual(self.reminders_of(self.other_user), [])
+
+	def test_a_time_with_an_offset_is_stored_in_the_system_time_zone(self):
+		in_utc = self.in_an_hour.replace(tzinfo=ZoneInfo(get_system_timezone())).astimezone(timezone.utc)
+
+		api.remind_me_later(in_utc.isoformat(), "Call the supplier")
+
+		self.assertEqual([row.remind_at for row in self.reminders_of(self.user)], [self.in_an_hour])
+
+	def test_an_item_without_a_document_gets_a_reminder_of_its_title(self):
+		api.remind_me_later(self.in_an_hour.isoformat(), "Prepare the weekly report")
+
+		self.assertEqual(
+			[
+				(row.description, row.reminder_doctype, row.reminder_docname)
+				for row in self.reminders_of(self.user)
+			],
+			[("Prepare the weekly report", None, None)],
+		)
+
+	def test_a_document_the_user_cannot_read_is_refused_like_a_missing_one(self):
+		frappe.set_user("Administrator")
+		theirs = add_todo(self.other_user, "Their task")
+		frappe.set_user(self.user)
+		for doctype, name in (
+			("ToDo", theirs),
+			("ToDo", "missing-todo"),
+			("No Such DocType", "anything"),
+			("ToDo", None),
+			(None, theirs),
+		):
+			with self.subTest(doctype=doctype, name=name):
+				frappe.local.message_log = []
+				with self.assertRaises(frappe.PermissionError):
+					api.remind_me_later(self.in_an_hour.isoformat(), "Their task", doctype, name)
+				self.assertEqual(
+					[frappe.parse_json(message).message for message in frappe.local.message_log],
+					["This document is not available to you."],
+				)
+
+		self.assertEqual(self.reminders_of(self.user), [])
+
+	def test_a_time_not_later_than_now_and_an_empty_title_are_refused(self):
+		past = (now_datetime() - timedelta(minutes=1)).isoformat()
+		for remind_at, title in (
+			(past, "Call the supplier"),
+			("tomorrow morning", "Call the supplier"),
+			(today(), "Call the supplier"),
+			(self.in_an_hour.isoformat(), "<p> </p>"),
+		):
+			with self.subTest(remind_at=remind_at, title=title):
+				with self.assertRaises(frappe.ValidationError):
+					api.remind_me_later(remind_at, title)
+
+		self.assertEqual(self.reminders_of(self.user), [])

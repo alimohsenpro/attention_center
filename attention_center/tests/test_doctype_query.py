@@ -231,6 +231,8 @@ class TestDocTypeQuery(FrappeTestCase):
 					"id": name,
 					"title": "Review the budget",
 					"route": f"/app/attention-test-request/{name}",
+					"reference_doctype": REQUEST,
+					"reference_name": name,
 					"type_label": None,
 					"from_label": "request.sender",
 					"date": "2026-11-09T09:30:00",

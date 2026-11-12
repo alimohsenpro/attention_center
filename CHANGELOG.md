@@ -23,6 +23,12 @@ All notable changes to Attention Center. The format follows
   acknowledged and who has not in the report "Announcement Acknowledgements", with Frappe's export,
   from a button on the announcement's form or from the workspace. Endpoints `get_announcement`,
   `get_announcements_to_acknowledge` and `get_unseen_announcements`.
+- **Remind me later.** A clock button beside "Open" on every item sets one of Frappe's reminders for the
+  user, in an hour, tomorrow at 9:00 or at a time they pick, about the item's document (which they must
+  be able to read). Endpoint `remind_me_later`. Items now carry the document they are about
+  (`reference_doctype`, `reference_name`) next to their route.
+- **Today's Events and Due Reminders.** Two built-in info sources: the events the user's Frappe calendar
+  shows for today, repeating ones included, and the user's reminders that fell due in the last 24 hours.
 
 ## 0.1.0 — 2026-11-11
 

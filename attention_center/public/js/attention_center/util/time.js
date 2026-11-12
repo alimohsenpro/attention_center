@@ -1,6 +1,6 @@
-// Do Not Disturb times [FR-SND-02]. No DOM and no frappe, so they can be tested with node --test. Times are naive
-// "YYYY-MM-DD HH:mm:ss" text of one time zone, the form Frappe's date helpers give; the arithmetic reads them as UTC,
-// so that the browser's own time zone plays no part.
+// Do Not Disturb times [FR-SND-02] and "Remind me later" times [FR-SNZ-01]. No DOM and no frappe, so they can be tested
+// with node --test. Times are naive "YYYY-MM-DD HH:mm:ss" text of one time zone, the form Frappe's date helpers give;
+// the arithmetic reads them as UTC, so that the browser's own time zone plays no part.
 
 const HOUR_MS = 3600 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -25,6 +25,24 @@ export function dndChoice(until, now) {
 // How long until `until` from `now`, in milliseconds; both in one time zone.
 export function msUntil(until, now) {
 	return parse(until) - parse(now);
+}
+
+// When a reminder chosen at `now` falls due: an hour later for "hour", at nine o'clock on the next day for "morning".
+export function remindAt(choice, now) {
+	if (choice === "hour") return format(parse(now) + HOUR_MS);
+	return format(parse(`${now.slice(0, 10)} 09:00:00`) + DAY_MS);
+}
+
+// The value of a datetime-local input ("YYYY-MM-DDTHH:mm", with seconds or not) as naive time text; null when the
+// input holds no complete time.
+export function fromInputValue(value) {
+	const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(:\d{2})?$/.exec(value);
+	return match ? `${match[1]} ${match[2]}${match[3] ?? ":00"}` : null;
+}
+
+// Naive time text as the value of a datetime-local input, to the minute.
+export function toInputValue(text) {
+	return text.slice(0, 16).replace(" ", "T");
 }
 
 // Takes either separator between the date and the time: the server sends "T", Frappe's helpers a space.

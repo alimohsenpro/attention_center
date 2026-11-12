@@ -61,4 +61,30 @@ ANNOUNCEMENTS = {
 	"list_route": "/app/attention-announcement",
 }
 
-SOURCES = [APPROVALS, ASSIGNMENTS, NOTIFICATIONS, ANNOUNCEMENTS]
+EVENTS = {
+	"key": "attention_center.events",
+	"contract_version": 1,
+	"label": "Today's Events",
+	"kind": "info",
+	"type": "python",
+	"get_count": "attention_center.sources.events.get_count",
+	"get_items": "attention_center.sources.events.get_items",
+	"get_recipients": "attention_center.sources.events.get_recipients",
+	"watch_doctypes": ["Event"],
+	"list_route": "/app/event/view/calendar/default",
+}
+
+REMINDERS = {
+	"key": "attention_center.reminders",
+	"contract_version": 1,
+	"label": "Due Reminders",
+	"kind": "info",
+	"type": "python",
+	"get_count": "attention_center.sources.reminders.get_count",
+	"get_items": "attention_center.sources.reminders.get_items",
+	"get_recipients": "attention_center.sources.reminders.get_recipients",
+	"watch_doctypes": ["Reminder"],
+	"list_route": "/app/reminder",
+}
+
+SOURCES = [APPROVALS, ASSIGNMENTS, NOTIFICATIONS, ANNOUNCEMENTS, EVENTS, REMINDERS]

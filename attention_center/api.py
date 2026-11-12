@@ -10,12 +10,12 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.permissions import is_system_user
-from frappe.utils import cint, now_datetime
+from frappe.utils import cint, get_datetime, now_datetime
 
 from attention_center.engine import preferences, registry, runner
 from attention_center.engine.contract import normalize_items
 from attention_center.permissions import is_manager
-from attention_center.sources import announcements
+from attention_center.sources import announcements, reminders
 
 SETTINGS = "Attention Center Settings"
 SOURCE = "Attention Source"
@@ -153,6 +153,20 @@ def get_announcement(announcement: str) -> dict:
 	user = _desk_user()
 	_visible_source(user, announcements.KEY)
 	return announcements.detail(announcement)
+
+
+@frappe.whitelist(methods=["POST"])
+def remind_me_later(
+	remind_at: str, title: str, reference_doctype: str | None = None, reference_name: str | None = None
+) -> dict:
+	"""Set a reminder for the user at `remind_at` about an item: its title and the document it is about, which they
+	must be able to read. Frappe notifies them when it falls due, and the due reminders source lists it [FR-SNZ-01]."""
+	_desk_user()
+	reminder = reminders.remind(remind_at, title, reference_doctype, reference_name)
+	return {
+		"reminder": reminder.name,
+		"remind_at": get_datetime(reminder.remind_at).isoformat(timespec="seconds"),
+	}
 
 
 @frappe.whitelist()

@@ -9,6 +9,7 @@ import { ALL_TAB, buildTabs, itemFetcher } from "../util/window_tabs.js";
 import { createAnnouncement } from "./announcement.js";
 import { ICONS } from "./icons.js";
 import { createSettings, modeLabel } from "./settings.js";
+import { createSnooze } from "./snooze.js";
 import { renderTable } from "./table.js";
 import { createTabs } from "./tabs.js";
 import { WINDOW_STYLES } from "./window_styles.js";
@@ -33,8 +34,10 @@ const FOCUSABLE =
 // the drawer on the inline-end edge leave the page usable, so focus may leave them. Closing returns focus to
 // the element that had it before opening, unless the user has moved it onto the page meanwhile.
 //
-// `api` has getItems, getAnnouncementsToAcknowledge, getAnnouncement, acknowledgeAnnouncement, markSeen and
-// setPreferences; `safe` wraps every handler in the client's guard;
+// Each item has "Remind me later" beside "Open" (ui/snooze.js) [FR-SNZ-01].
+//
+// `api` has getItems, getAnnouncementsToAcknowledge, getAnnouncement, acknowledgeAnnouncement, markSeen,
+// remindMeLater and setPreferences; `safe` wraps every handler in the client's guard;
 // `announce(text)` speaks through the polite live region; `refreshSummary()` fetches the summary into the store;
 // `tones`, `muted` and `previewTone(id)` serve the settings view.
 export function createWindow(
@@ -462,6 +465,14 @@ export function createWindow(
 				sourceLabel: (key) => labels.get(key),
 				format: FORMAT,
 				onOpenClick,
+				snooze: (item, columns) =>
+					createSnooze(item, {
+						columns,
+						remind: api.remindMeLater,
+						format: FORMAT,
+						safe,
+						announce,
+					}),
 			})
 		);
 		content.replaceChildren(...parts);

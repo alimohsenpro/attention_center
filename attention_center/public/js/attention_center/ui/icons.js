@@ -19,6 +19,7 @@ export const ICONS = {
 	settings: svg(
 		'<path d="M3.5 6h8.25M15.75 6h.75M3.5 14h.75M8.25 14h8.25"/><circle cx="13.75" cy="6" r="2"/><circle cx="6.25" cy="14" r="2"/>'
 	),
+	clock: svg('<circle cx="10" cy="10" r="7.25"/><path d="M10 6.25V10l2.5 1.75"/>'),
 	check: svg('<circle cx="10" cy="10" r="7.25"/><path d="m6.75 10.25 2.25 2.25 4.25-4.5"/>'),
 	alert: svg(
 		'<path d="M8.7 3.5a1.5 1.5 0 0 1 2.6 0l6 10.5a1.5 1.5 0 0 1-1.3 2.25H4a1.5 1.5 0 0 1-1.3-2.25Z"/><path d="M10 8v3M10 13.75v.01"/>'

@@ -55,6 +55,8 @@ export function createApi(call) {
 		acknowledgeAnnouncement: (name) =>
 			write("acknowledge_announcement", { announcement: name }),
 		markSeen: (source) => write("mark_seen", { source }),
+		// `reminder` holds remind_at (system time zone), title, reference_doctype and reference_name.
+		remindMeLater: (reminder) => write("remind_me_later", reminder),
 		setPreferences: (prefs) => write("set_preferences", { prefs }),
 		noteAutoOpened: () => write("note_auto_opened", {}),
 	};

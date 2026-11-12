@@ -761,6 +761,70 @@ tr[data-overdue] time {
 	color: var(--ac-surface);
 }
 
+.cell-open {
+	white-space: nowrap;
+}
+
+/* "Remind me later": an icon button beside "Open", and the row of choices under the item's row. */
+.snooze-button {
+	display: inline-flex;
+	align-items: center;
+	margin-inline-start: 8px;
+	vertical-align: top;
+}
+
+.snooze-button svg {
+	inline-size: 18px;
+	block-size: 18px;
+}
+
+.snooze-button[aria-expanded="true"] {
+	background: var(--ac-surface-2);
+}
+
+.snooze-row td {
+	padding-block: 0 12px;
+	border-block-start: 0;
+}
+
+.snooze {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+}
+
+.snooze-label {
+	margin-inline-start: 8px;
+	color: var(--ac-muted);
+}
+
+.snooze-input {
+	padding-block: 3px;
+	padding-inline: 8px;
+	border: 1px solid var(--ac-border);
+	border-radius: var(--ac-radius-sm);
+	background: var(--ac-surface);
+	color: var(--ac-ink);
+	font: inherit;
+	font-size: 13px;
+}
+
+.snooze [aria-disabled="true"] {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.snooze-status {
+	flex-basis: 100%;
+	margin: 0;
+	color: var(--ac-muted);
+}
+
+.snooze-status:empty {
+	display: none;
+}
+
 .pager {
 	display: flex;
 	align-items: center;
@@ -936,6 +1000,33 @@ tr[data-overdue] time {
 	.cell-open {
 		order: 7;
 		margin-inline-start: auto;
+	}
+
+	/* The choices of "Remind me later" continue the item's card. */
+	tbody tr:has(+ .snooze-row:not([hidden])) {
+		border-end-start-radius: 0;
+		border-end-end-radius: 0;
+	}
+
+	tbody tr.snooze-row {
+		margin-block-start: -8px;
+		border-block-start: 0;
+		border-start-start-radius: 0;
+		border-start-end-radius: 0;
+	}
+
+	tbody tr.snooze-row::before,
+	tbody tr.snooze-row::after {
+		content: none;
+	}
+
+	.snooze-row td {
+		flex: 1;
+		padding: 0;
+	}
+
+	.snooze-label {
+		margin-inline-start: 0;
 	}
 }
 
